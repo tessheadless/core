@@ -105,7 +105,7 @@ See [Cache](cache.md).
 | `TESS_PLUGIN_MAX_MEMORY_PAGES` | `1024` (64 MiB) | Highest per-plugin memory cap, in 64 KiB pages (plugins default to 256 = 16 MiB). |
 | `TESS_PLUGIN_MAX_MODULE_BYTES` | `20971520` (20 MiB) | Maximum module size. |
 
-## Translations, webhooks and workflows
+## Translations, webhooks, workflows, forms and calendars
 
 | Variable | Default | Description |
 |---|---|---|
@@ -116,6 +116,11 @@ See [Cache](cache.md).
 | `TESS_WEBHOOK_MAX_ATTEMPTS` | `5` | Attempts per delivery (retries after 10 s, 1 min, 5 min, 30 min). On AWS Lambda: one inline attempt. |
 | `TESS_N8N_URL` | unset | Where Tess reaches [n8n](../integrations/n8n.md), e.g. `http://n8n:5678`. Enables the `/n8n/` proxy and the admin *Workflows* page. Not on AWS Lambda. |
 | `TESS_N8N_PATH` | `/n8n/` | Path the n8n editor is served under; n8n must use the same `N8N_PATH`. |
+| `TESS_FORMS` | `true` | Enable [forms](../integrations/forms.md) (API, `GET`/`POST /api/forms/<slug>`). |
+| `TESS_FORMS_RATE_LIMIT` | `10` | Submissions accepted per visitor and form, per minute. |
+| `TESS_CALENDARS` | `true` | Enable [calendars](../integrations/calendars.md): linked Google calendars and cal.diy booking pages. |
+| `TESS_GOOGLE_CLIENT_ID`, `TESS_GOOGLE_CLIENT_SECRET` | unset | Google OAuth client for calendars. Without them, Admins set one in the admin (stored encrypted). |
+| `CALDIY_PUBLIC_URL`, `CALDIY_DB_PASSWORD`, `CALDIY_NEXTAUTH_SECRET`, `CALDIY_ENCRYPTION_KEY` | | The `caldiy` Compose profile: see [Calendars](../integrations/calendars.md#). |
 
 ## HTTP and GraphQL
 

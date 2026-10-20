@@ -5,6 +5,7 @@
 import { render } from "vike/abort";
 import type { SectionContext } from "../components/Sections";
 import { content, type Page } from "./content";
+import type { Locale } from "./i18n";
 import type { PageMeta } from "./meta";
 
 export interface SitePageData extends PageMeta {
@@ -12,9 +13,9 @@ export interface SitePageData extends PageMeta {
   context: SectionContext;
 }
 
-/** Data of a SitePage by slug (404 when it does not exist). */
-export async function sitePageData(slug: string): Promise<SitePageData> {
-  const c = await content();
+/** Data of a SitePage by slug, in `locale` (404 when it does not exist). */
+export async function sitePageData(slug: string, locale: Locale): Promise<SitePageData> {
+  const c = await content(locale);
   const page = c.pages.find((p) => p.slug === slug);
   if (!page) throw render(404, `No page \`${slug}\``);
   return {

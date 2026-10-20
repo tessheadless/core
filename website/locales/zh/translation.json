@@ -1,0 +1,44 @@
+{
+  "layout": {
+    "skipToContent": "跳到正文",
+    "mainNavigation": "主导航",
+    "footerNavigation": "页脚",
+    "openNavigation": "打开导航",
+    "language": "语言"
+  },
+  "error": {
+    "notFoundTitle": "页面不存在",
+    "notFoundBody": "此页面不存在，或已被移动。",
+    "errorTitle": "出错了",
+    "errorBody": "请稍后再试。",
+    "backHome": "返回首页"
+  },
+  "compare": {
+    "tessVs": "Tess 对比 {{name}}",
+    "tessVsKind": "Tess 对比 {{name}}：{{kind}}",
+    "allComparisons": "全部对比",
+    "eyebrow": "对比",
+    "title": "Tess 与其他 CMS 的对比",
+    "intro": "每个 CMS 都有取舍。这些页面说明 Tess 适合哪些场景，以及何时其他产品是更好的选择。每一页都会介绍如何把你的内容模型迁移到 Tess。",
+    "highlights": "要点：Tess 与 {{name}}",
+    "criterion": "对比项",
+    "migrationGuideFrom": "迁移指南：从 {{name}} 迁移到 Tess",
+    "movingFromTools": "从 {{name}} 迁移：导入与导出工具",
+    "fullComparison": "完整对比",
+    "factsCheckedAll": "信息核实于 {{date}} 或之后，来源为各厂商的公开文档。产品会不断变化：做决定前请查看它们的官网。",
+    "metaTitle": "Tess 与其他 CMS 的对比",
+    "metaDescription": "Tess 与 {{names}} 的对比：架构、API、数据库、工作流、托管与许可证。",
+    "breadcrumb": "面包屑导航",
+    "sideBySide": "逐项对比",
+    "comparedWith": "Tess 与 {{name}} 的对比",
+    "chooseThem": "以下情况选择 {{name}}…",
+    "chooseTess": "以下情况选择 Tess…",
+    "movingTitle": "从 {{name}} 迁移到 Tess",
+    "stepByStep": "分步迁移指南",
+    "readImportExport": "阅读导入与导出指南",
+    "factsChecked": "信息核实于 {{date}}，来源为 {{name}} 的公开文档",
+    "factsCheckedEnd": "。产品变化很快：最新功能和价格请以厂商官网为准。",
+    "otherComparisons": "其他对比",
+    "competitorDescription": "Tess 与 {{name}}（{{kind}}）的对比：{{summary}}"
+  }
+}

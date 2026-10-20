@@ -14,9 +14,11 @@
     "lint": "oxlint --type-aware --ignore-path .gitignore ."
   },
   "dependencies": {
+    "i18next": "26.4.2",
     "motion": "13.5.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-i18next": "17.0.15",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "vike": "^0.4.268",

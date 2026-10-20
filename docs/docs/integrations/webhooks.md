@@ -20,6 +20,9 @@ itself.
 | `contentType.create`, `contentType.update`, `contentType.delete` | A content model changed. |
 | `component.create`, `component.update`, `component.delete` | A component changed. |
 | `i18n.language.*`, `i18n.key.*`, `i18n.translation.update`, `i18n.import`, `i18n.publish` | [Translations](translations.md) changed. |
+| `form.submitted` | A visitor submitted a [form](forms.md) (`form.create`, `form.update`, `form.delete`: an Admin changed one). |
+| `calendar.booking.created`, `…rescheduled`, `…cancelled`, `…requested`, `…rejected`, `…updated` | A cal.diy booking page received a booking change ([calendars](calendars.md)). |
+| `calendar.event.created`, `…updated`, `…cancelled` | Tess changed an event of a linked Google calendar. |
 | `webhook.ping` | The **Test** button / `testWebhook`. |
 
 A webhook subscribes to exact names, prefixes (`entry.*`) or everything (`*`),

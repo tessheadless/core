@@ -1,0 +1,44 @@
+{
+  "layout": {
+    "skipToContent": "Ir al contenido",
+    "mainNavigation": "Principal",
+    "footerNavigation": "Pie de página",
+    "openNavigation": "Abrir la navegación",
+    "language": "Idioma"
+  },
+  "error": {
+    "notFoundTitle": "Página no encontrada",
+    "notFoundBody": "Esta página no existe o se ha movido.",
+    "errorTitle": "Algo salió mal",
+    "errorBody": "Vuelve a intentarlo en un momento.",
+    "backHome": "Volver a la página de inicio"
+  },
+  "compare": {
+    "tessVs": "Tess vs {{name}}",
+    "tessVsKind": "Tess vs {{name}}: {{kind}}",
+    "allComparisons": "Todas las comparaciones",
+    "eyebrow": "Comparar",
+    "title": "Tess frente a otros CMS",
+    "intro": "Todo CMS tiene sus compromisos. Estas páginas explican dónde encaja Tess y cuándo otro producto es la mejor opción. Cada una explica cómo llevar tus modelos de contenido a Tess.",
+    "highlights": "Lo esencial: Tess y {{name}}",
+    "criterion": "Criterio",
+    "migrationGuideFrom": "Guía de migración: de {{name}} a Tess",
+    "movingFromTools": "Dejar {{name}}: herramientas de importación y exportación",
+    "fullComparison": "Comparación completa",
+    "factsCheckedAll": "Datos verificados el {{date}} o después, en la documentación pública de cada proveedor. Los productos cambian: consulta sus sitios antes de decidir.",
+    "metaTitle": "Compara Tess con otros CMS",
+    "metaDescription": "Tess comparado con {{names}}: arquitectura, API, bases de datos, flujos de trabajo, alojamiento y licencia.",
+    "breadcrumb": "Ruta de navegación",
+    "sideBySide": "Cara a cara",
+    "comparedWith": "Tess comparado con {{name}}",
+    "chooseThem": "Elige {{name}} si…",
+    "chooseTess": "Elige Tess si…",
+    "movingTitle": "Pasar de {{name}} a Tess",
+    "stepByStep": "Guía de migración paso a paso",
+    "readImportExport": "Leer la guía de importación y exportación",
+    "factsChecked": "Datos verificados el {{date}} en la documentación pública de {{name}}",
+    "factsCheckedEnd": ". Los productos cambian rápido: consulta el sitio del proveedor para ver las últimas funciones y precios.",
+    "otherComparisons": "Otras comparaciones",
+    "competitorDescription": "Tess comparado con {{name}} ({{kind}}): {{summary}}"
+  }
+}

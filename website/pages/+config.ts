@@ -11,6 +11,8 @@ const config: Config = {
   title: "Tess",
   ssr: true,
   prerender: true,
+  // onBeforeRoute sets it in the browser too, but the first render must match the HTML.
+  passToClient: ["locale"],
   extends: [vikeReact],
 };
 

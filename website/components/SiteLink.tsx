@@ -3,6 +3,8 @@
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
 import type { ReactNode } from "react";
+import { usePageContext } from "vike-react/usePageContext";
+import { localizeUrl } from "../lib/i18n";
 import type { SiteLink as Link } from "../lib/content";
 import { isExternal, isOtherApp } from "../lib/meta";
 
@@ -23,9 +25,26 @@ export function linkRel(href: string): string | undefined {
   return undefined;
 }
 
-export function A({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+/** Internal links stay in the page's language (`/compare` → `/fr/compare`). */
+export function useLocalize(): (url: string) => string {
+  const { locale } = usePageContext();
+  return (url) => localizeUrl(url, locale);
+}
+
+export function A({
+  href,
+  className,
+  ariaLabel,
+  children,
+}: {
+  href: string;
+  className?: string;
+  ariaLabel?: string;
+  children: ReactNode;
+}) {
+  const localize = useLocalize();
   return (
-    <a href={href} className={className} rel={linkRel(href)}>
+    <a href={localize(href)} className={className} rel={linkRel(href)} aria-label={ariaLabel}>
       {children}
     </a>
   );

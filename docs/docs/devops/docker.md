@@ -82,6 +82,7 @@ docker compose --profile local-commercial up -d --build
 | `search` | Typesense 29 | `TESS_SEARCH=typesense`, `TYPESENSE_URL=http://typesense:8108`, `TYPESENSE_API_KEY` |
 | `cache` (or `cache-redis`, `cache-keydb`, `cache-dragonfly`) | Valkey (or Redis, KeyDB, Dragonfly) | `TESS_CACHE=valkey`, `TESS_CACHE_URL=redis://valkey:6379`, see [Cache](cache.md) |
 | `n8n` | n8n with the Tess nodes | `TESS_N8N_URL=http://n8n:5678`, `N8N_ENCRYPTION_KEY`, see [n8n](../integrations/n8n.md) |
+| `caldiy` | cal.diy, and PostgreSQL shared with Tess | `TESS_DATABASE=postgres` and the `CALDIY_*` settings (`init-env.sh --calendar caldiy`), see [Calendars](../integrations/calendars.md#) |
 
 ### First run
 

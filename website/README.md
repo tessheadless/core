@@ -21,7 +21,23 @@ Page sections are components: `SiteHero`, `SiteFeatureGrid`, `SiteRichText`, `Si
 section type also needs a case in `components/Sections.tsx`.
 
 Models are defined in [`content/models.yaml`](content/models.yaml), in the `tess-transfer` format. The initial
-content is [`content/seed.json`](content/seed.json).
+content is [`content/seed.json`](content/seed.json) (English) and `content/seed.{fr,zh,es}.json`.
+
+## Languages
+
+The site is in English (`/`), French (`/fr/`), Simplified Chinese (`/zh/`) and Spanish (`/es/`). Every page is
+prerendered once per language, and a menu in the header switches between them. The documentation stays in
+English.
+
+- **Content:** every `Site*` model has a `locale` field (`EN`, `FR`, `ZH`, `ES`; empty means English). Translate an
+  entry by creating another one with the same `slug` (pages, competitors) and the other locale; for features and
+  settings, create the entries of that language. Where a language has no entry, the site shows the English one.
+- **Interface strings** (buttons, table headers, the 404 page…) are i18next resources in
+  `locales/{locale}/translation.json`, bundled with the site.
+- Links in the content stay unprefixed (`/compare`): the site adds the language (`/fr/compare`). Links to `/docs/`
+  are left as they are.
+- **Adding a language:** add it to `LOCALES` and `LOCALE_INFO` in [`lib/i18n.ts`](lib/i18n.ts), to the `locale`
+  enum in `content/models.yaml`, to the seed script, and create its `locales/` file and seed file.
 
 ## Set up a Tess instance
 
@@ -31,8 +47,12 @@ tess-transfer import content/models.yaml               # add --update after chan
 TESS_API_URL=$TESS_URL npm run seed                     # creates and publishes the content
 ```
 
-`npm run seed` never overwrites existing entries (pass `-- --overwrite` to reset them to the seed), so it is
-safe to run again.
+`npm run seed` loads every language; `-- --locale fr` loads one. It never overwrites existing entries (pass
+`-- --overwrite` to reset them to the seed), so it is safe to run again. Entries created before the `locale` field
+existed count as English.
+
+After upgrading from a version without languages, import the models with `--update` (adds the `locale` field),
+then run `npm run seed` to add the translations.
 
 ## Build
 
@@ -46,6 +66,8 @@ npm run preview                                         # serve the build locall
   and the build logs a warning.
 - `TESS_TOKEN`: only needed if the instance disables public reads (`TESS_PUBLIC_READ=false`); a Member token
   is enough.
+- `SITE_URL`: the public origin (`https://www.tessheadless.com`). With it, pages get canonical and `hreflang`
+  links to their translations (search engines need absolute URLs).
 
 If Tess is unreachable or returns errors, the build fails instead of publishing an empty site.
 

@@ -1,0 +1,44 @@
+{
+  "layout": {
+    "skipToContent": "Skip to content",
+    "mainNavigation": "Main",
+    "footerNavigation": "Footer",
+    "openNavigation": "Open navigation",
+    "language": "Language"
+  },
+  "error": {
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "This page does not exist, or it moved.",
+    "errorTitle": "Something went wrong",
+    "errorBody": "Please try again in a moment.",
+    "backHome": "Back to the home page"
+  },
+  "compare": {
+    "tessVs": "Tess vs {{name}}",
+    "tessVsKind": "Tess vs {{name}}: {{kind}}",
+    "allComparisons": "All comparisons",
+    "eyebrow": "Compare",
+    "title": "How Tess compares",
+    "intro": "Every CMS makes trade-offs. These pages say where Tess fits, and where another product is the better choice. Each one explains how to move your content models to Tess.",
+    "highlights": "Highlights: Tess and {{name}}",
+    "criterion": "Criterion",
+    "migrationGuideFrom": "Migration guide: from {{name}} to Tess",
+    "movingFromTools": "Moving from {{name}}: import & export tools",
+    "fullComparison": "Full comparison",
+    "factsCheckedAll": "Facts checked on {{date}} or later, from each vendor's public documentation. Products change: check their sites before deciding.",
+    "metaTitle": "Compare Tess with other CMSs",
+    "metaDescription": "How Tess compares with {{names}}: architecture, APIs, databases, workflows, hosting and license.",
+    "breadcrumb": "Breadcrumb",
+    "sideBySide": "Side by side",
+    "comparedWith": "Tess compared with {{name}}",
+    "chooseThem": "Choose {{name}} if…",
+    "chooseTess": "Choose Tess if…",
+    "movingTitle": "Moving from {{name}} to Tess",
+    "stepByStep": "Step-by-step migration guide",
+    "readImportExport": "Read the import & export guide",
+    "factsChecked": "Facts checked on {{date}} from {{name}}'s public documentation",
+    "factsCheckedEnd": ". Products change quickly: check the vendor's site for the latest features and pricing.",
+    "otherComparisons": "Other comparisons",
+    "competitorDescription": "Tess compared with {{name}} ({{kind}}): {{summary}}"
+  }
+}

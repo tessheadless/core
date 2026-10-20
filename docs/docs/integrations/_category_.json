@@ -1,9 +1,9 @@
 {
-  "label": "Integrations (translations, webhooks, n8n)",
+  "label": "Integrations (translations, webhooks, n8n, forms, calendars)",
   "position": 7,
   "link": {
     "type": "generated-index",
     "slug": "/category/integrations",
-    "description": "Manage translations like Tolgee, push events to webhooks and automate Tess with n8n workflows."
+    "description": "Manage translations like Tolgee, push events to webhooks, automate Tess with n8n workflows, collect forms and link calendars."
   }
 }
