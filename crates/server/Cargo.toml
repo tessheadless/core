@@ -1,0 +1,61 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[package]
+name = "tess-server"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Tess server binary: HTTP (axum) or AWS Lambda."
+
+[[bin]]
+name = "tess"
+path = "src/main.rs"
+
+[features]
+default = ["sql", "mongodb", "dynamodb", "rocksdb", "lambda", "s3"]
+# PostgreSQL, MySQL and SQLite (one SeaQuery-based backend).
+sql = ["dep:tess-storage-sql"]
+postgres = ["sql"]
+mysql = ["sql"]
+sqlite = ["sql"]
+mongodb = ["dep:tess-storage-mongodb"]
+dynamodb = ["dep:tess-storage-dynamodb"]
+rocksdb = ["dep:tess-storage-rocksdb"]
+lambda = ["dep:lambda_http"]
+s3 = ["tess-media/s3", "tess-i18n/s3"]
+
+[dependencies]
+anyhow = "1.0.104"
+async-graphql-axum = "7.2.1"
+axum = "0.8.9"
+bytes = "1.12.1"
+futures-util = "0.3.34"
+tess-core = { path = "../core" }
+tess-graphql = { path = "../graphql" }
+tess-i18n = { path = "../i18n", default-features = false }
+tess-mcp = { path = "../mcp" }
+tess-media = { path = "../media", default-features = false }
+tess-plugins = { path = "../plugins" }
+tess-search = { path = "../search" }
+tess-cache = { path = "../cache" }
+tess-webhooks = { path = "../webhooks" }
+tess-storage-dynamodb = { path = "../storage-dynamodb", optional = true }
+tess-storage-mongodb = { path = "../storage-mongodb", optional = true }
+tess-storage-sql = { path = "../storage-sql", optional = true }
+tess-storage-rocksdb = { path = "../storage-rocksdb", optional = true }
+lambda_http = { version = "1.3.1", optional = true }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+subtle = "2.6.1"
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tower-http = { version = "0.7.1", features = ["cors", "trace", "fs"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+tess-auth = { version = "0.1.0", path = "../auth" }

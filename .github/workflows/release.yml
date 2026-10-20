@@ -1,0 +1,366 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Runs when a GitHub release is published (tag `v1.2.3` → version `1.2.3`) and
+# attaches to it:
+#
+# - tess-<version>-<os>-<arch>.tar.xz (.zip on Windows): the `tess` and
+#   `tess-transfer` binaries with the admin UI, for
+#     linux   amd64, arm64, armv7 (32-bit ARM, hard float)
+#     macos   amd64, arm64
+#     windows amd64, arm64
+# - tess-docker-<version>-<arch>.tar.xz: docker-compose.yml,
+#   a .env pinned to the matching image, scripts/init-env.sh, INSTALL.md
+# - SHA256SUMS
+#
+# and pushes the Docker images (Linux amd64 and arm64):
+#   ghcr.io/<owner>/tess:<version>-amd64, :<version>-arm64, :<version> (multi-arch)
+#   ghcr.io/<owner>/tess-n8n:… (n8n with the Tess nodes, same tags)
+# plus `latest`, `latest-amd64` and `latest-arm64` for non-prerelease versions.
+#
+# Re-run for an existing release with “Run workflow” and its tag.
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of an existing release to build again (e.g. v0.2.0)
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      latest: ${{ steps.v.outputs.latest }}
+      image: ${{ steps.v.outputs.image }}
+      n8n_image: ${{ steps.v.outputs.n8n_image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          version="${TAG#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::release tag '$TAG' is not a version like v1.2.3"; exit 1
+          fi
+          # The tagged commit must carry this version (scripts/version.sh).
+          if [ "$(scripts/version.sh)" != "$TAG" ]; then
+            echo "::error::VERSION is $(scripts/version.sh), not $TAG: run scripts/version.sh $TAG, commit, then tag"; exit 1
+          fi
+          scripts/version.sh --check
+          prerelease=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)
+          owner=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          {
+            echo "version=$version"
+            echo "latest=$([ "$prerelease" = true ] && echo false || echo true)"
+            echo "image=ghcr.io/$owner/tess"
+            echo "n8n_image=ghcr.io/$owner/tess-n8n"
+          } >> "$GITHUB_OUTPUT"
+
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - working-directory: admin
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin
+          path: admin/dist/client
+          retention-days: 1
+
+  binaries:
+    needs: [meta, admin]
+    name: ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04: glibc 2.35, so the binaries also run on older distributions.
+          - { os: linux, arch: amd64, runner: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: linux, arch: arm64, runner: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: linux, arch: armv7, runner: ubuntu-22.04, target: armv7-unknown-linux-gnueabihf, cross: true }
+          - { os: macos, arch: amd64, runner: macos-latest, target: x86_64-apple-darwin }
+          - { os: macos, arch: arm64, runner: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows, arch: amd64, runner: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: windows, arch: arm64, runner: windows-11-arm, target: aarch64-pc-windows-msvc }
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      TARGET: ${{ matrix.target }}
+      NAME: tess-${{ needs.meta.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install Rust (Windows on ARM images may lack rustup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            $arch = if ($env:TARGET -like 'aarch64*') { 'aarch64' } else { 'x86_64' }
+            Invoke-WebRequest "https://static.rust-lang.org/rustup/dist/$arch-pc-windows-msvc/rustup-init.exe" -OutFile rustup-init.exe
+            ./rustup-init.exe -y --profile minimal --default-toolchain stable
+            "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          }
+
+      - name: Install LLVM (RocksDB bindings need libclang)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $llvm = 'C:\Program Files\LLVM'
+          if (-not (Test-Path "$llvm\bin\libclang.dll")) {
+            $suffix = if ($env:TARGET -like 'aarch64*') { 'woa64' } else { 'win64' }
+            Invoke-WebRequest "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-$suffix.exe" -OutFile llvm.exe
+            Start-Process -Wait -FilePath ./llvm.exe -ArgumentList '/S'
+          }
+          "LIBCLANG_PATH=$llvm\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "$llvm\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Install the 32-bit ARM cross toolchain
+        if: matrix.cross
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross clang libclang-dev
+          # librocksdb-sys defines HAVE_UINT128_EXTENSION for every GCC target,
+          # but 32-bit ARM has no __uint128_t: undo it in a forced include.
+          echo '#undef HAVE_UINT128_EXTENSION' > "$RUNNER_TEMP/no-uint128.h"
+          {
+            echo "CXXFLAGS_armv7_unknown_linux_gnueabihf=-include $RUNNER_TEMP/no-uint128.h"
+            echo "CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc"
+            echo "CC_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc"
+            echo "CXX_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++"
+            echo "AR_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar"
+            # bindgen (RocksDB) must read the ARM headers, not the host ones.
+            echo "BINDGEN_EXTRA_CLANG_ARGS_armv7_unknown_linux_gnueabihf=--sysroot=/usr/arm-linux-gnueabihf -I/usr/arm-linux-gnueabihf/include"
+          } >> "$GITHUB_ENV"
+
+      - name: Install libclang
+        if: runner.os == 'Linux' && !matrix.cross
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq clang libclang-dev
+
+      - name: Add the Rust target
+        shell: bash
+        run: rustup target add "$TARGET"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        shell: bash
+        run: cargo build --release --locked --target "$TARGET" -p tess-server -p tess-transfer
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: admin
+          path: admin-dist
+
+      - name: Package
+        shell: bash
+        run: |
+          ext=""; [ "${{ runner.os }}" = Windows ] && ext=".exe"
+          mkdir -p "dist/$NAME"
+          cp "target/$TARGET/release/tess$ext" "target/$TARGET/release/tess-transfer$ext" "dist/$NAME/"
+          # Found next to the binary at start-up (or set TESS_ADMIN_DIR).
+          cp -R admin-dist "dist/$NAME/admin"
+          cp LICENSE.md README.md INSTALL.md .env.example "dist/$NAME/"
+          if [ "${{ matrix.os }}" = linux ]; then
+            cp deploy/passenger/config.ru deploy/passenger/Gemfile "dist/$NAME/"
+          fi
+          cd dist
+          if [ "${{ runner.os }}" = Windows ]; then
+            7z a -tzip -mx=9 "$NAME.zip" "$NAME" > /dev/null
+            echo "ASSET=dist/$NAME.zip" >> "$GITHUB_ENV"
+          else
+            tar -cJf "$NAME.tar.xz" "$NAME"
+            echo "ASSET=dist/$NAME.tar.xz" >> "$GITHUB_ENV"
+          fi
+
+      - name: Smoke test
+        if: ${{ !matrix.cross && !(matrix.os == 'macos' && matrix.arch == 'amd64') }}
+        shell: bash
+        run: |
+          ext=""; [ "${{ runner.os }}" = Windows ] && ext=".exe"
+          "dist/$NAME/tess-transfer$ext" --help > /dev/null
+
+      - name: Upload to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+
+  docker:
+    needs: meta
+    name: docker-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Tags
+        id: tags
+        run: |
+          for kind in tess n8n; do
+            image=${{ needs.meta.outputs.image }}; [ $kind = n8n ] && image=${{ needs.meta.outputs.n8n_image }}
+            tags="$image:$VERSION-${{ matrix.arch }}"
+            [ "${{ needs.meta.outputs.latest }}" = true ] && tags="$tags,$image:latest-${{ matrix.arch }}"
+            echo "$kind=$tags" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Build and push tess
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ steps.tags.outputs.tess }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=tess-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=tess-${{ matrix.arch }}
+
+      - name: Build and push tess-n8n
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/n8n/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ steps.tags.outputs.n8n }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.title=n8n with the Tess nodes
+          cache-from: type=gha,scope=n8n-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=n8n-${{ matrix.arch }}
+
+  docker-manifest:
+    needs: [meta, docker]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Multi-arch tags
+        run: |
+          for image in ${{ needs.meta.outputs.image }} ${{ needs.meta.outputs.n8n_image }}; do
+            docker buildx imagetools create -t "$image:$VERSION" "$image:$VERSION-amd64" "$image:$VERSION-arm64"
+            if [ "${{ needs.meta.outputs.latest }}" = true ]; then
+              docker buildx imagetools create -t "$image:latest" "$image:$VERSION-amd64" "$image:$VERSION-arm64"
+            fi
+          done
+
+  compose-bundle:
+    needs: meta
+    name: compose-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      NAME: tess-docker-${{ needs.meta.outputs.version }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Assemble
+        run: |
+          d="dist/$NAME"
+          mkdir -p "$d/deploy/garage" "$d/scripts"
+          # Published images only: drop the `build:` sections (no sources in the bundle).
+          yq 'del(.services[].build)' docker-compose.yml > "$d/docker-compose.yml"
+          cp deploy/garage/garage.toml deploy/garage/setup.sh deploy/garage/init.sh "$d/deploy/garage/"
+          cp scripts/init-env.sh "$d/scripts/"
+          cp INSTALL.md LICENSE.md .env.example "$d/"
+          {
+            echo "# Tess $VERSION for linux/${{ matrix.arch }}: generated by the release workflow."
+            echo "# Images: \${TESS_IMAGE}:\${TESS_VERSION}-\${TESS_ARCH} (empty TESS_ARCH = multi-arch tag)."
+            echo "TESS_IMAGE=${{ needs.meta.outputs.image }}"
+            echo "TESS_N8N_IMAGE=${{ needs.meta.outputs.n8n_image }}"
+            echo "TESS_VERSION=$VERSION"
+            echo "TESS_ARCH=${{ matrix.arch }}"
+            echo
+            # The template, without its license header.
+            sed '1,/^$/d' .env.example
+          } > "$d/.env"
+          # The compose file must stay valid with this .env, alone and with the
+          # `local` profile, and init-env.sh must keep the pinned image.
+          (cd "$d" && docker compose config --images && docker compose --profile local config --images &&
+            cp .env check.env && scripts/init-env.sh -y -f --local -o check.env </dev/null >/dev/null &&
+            grep -qx "TESS_VERSION=$VERSION" check.env && rm -f check.env check.env.bak)
+          tar -C dist -cJf "dist/$NAME.tar.xz" "$NAME"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "dist/$NAME.tar.xz" --clobber --repo "$GITHUB_REPOSITORY"
+
+  checksums:
+    needs: [binaries, compose-bundle]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets && cd assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'tess-*'
+          sha256sum tess-* > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$TAG" SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"

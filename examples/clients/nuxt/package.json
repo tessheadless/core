@@ -1,0 +1,21 @@
+{
+  "name": "tess-client-nuxt",
+  "description": "Example Nuxt client for the Tess GraphQL API.",
+  "author": "Tess Dev Team",
+  "homepage": "https://tessheadless.com",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^4.6.2",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  }
+}

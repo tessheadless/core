@@ -1,0 +1,10 @@
+target/
+**/target/
+**/node_modules/
+admin/dist/
+data/
+.env*
+.git/
+integrations/n8n-nodes-tess/dist/
+docs/
+website/

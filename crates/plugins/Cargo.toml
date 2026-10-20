@@ -1,0 +1,33 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[package]
+name = "tess-plugins"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Tess WebAssembly plugin runtime (Extism)."
+
+[dependencies]
+async-trait = "0.1.92"
+base64 = "0.23.1"
+bytes = "1.12.1"
+tess-core = { version = "0.1.0", path = "../core" }
+tess-media = { version = "0.1.0", path = "../media", default-features = false }
+extism = "1.41.0"
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+tokio = { version = "1.53.3", features = ["rt", "sync"] }
+tracing = "0.1.44"
+uuid = "1.28.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+uuid = "1.28.0"

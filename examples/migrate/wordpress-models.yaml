@@ -1,0 +1,46 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Tess models for a WordPress site without plugins (docs: Migrate from WordPress).
+#   tess-transfer import wordpress-models.yaml --dry-run
+#   tess-transfer import wordpress-models.yaml
+version: 1
+contentTypes:
+  - apiId: Author                    # WordPress users who write (no email, no password)
+    fields:
+      - { name: name, type: TEXT, required: true }
+      - { name: slug, type: TEXT, required: true, maxLength: 200 }
+      - { name: bio, type: TEXT, maxLength: null }
+  - apiId: Category
+    pluralApiId: categories
+    fields:
+      - { name: name, type: TEXT, required: true, maxLength: 200 }
+      - { name: slug, type: TEXT, required: true, maxLength: 200 }
+      - { name: description, type: TEXT, maxLength: null }
+      - { name: parent, type: RELATION, relationTarget: Category }
+  - apiId: Tag
+    fields:
+      - { name: name, type: TEXT, required: true, maxLength: 200 }
+      - { name: slug, type: TEXT, required: true, maxLength: 200 }
+  - apiId: Post
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 300 }
+      - { name: slug, type: TEXT, required: true, maxLength: 200 }
+      - { name: date, type: DATETIME }                              # original publication date
+      - { name: excerpt, type: TEXT, maxLength: null }
+      - { name: body, type: MARKDOWN }                              # converted from HTML
+      - { name: sticky, type: BOOLEAN }
+      - { name: featuredImage, type: RELATION, relationTarget: Asset }
+      - { name: author, type: RELATION, relationTarget: Author }
+      - { name: categories, type: RELATION, relationTarget: Category, many: true }
+      - { name: tags, type: RELATION, relationTarget: Tag, many: true }
+  - apiId: Page
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 300 }
+      - { name: slug, type: TEXT, required: true, maxLength: 200 }
+      - { name: body, type: MARKDOWN }
+      - { name: menuOrder, type: INT }
+      - { name: featuredImage, type: RELATION, relationTarget: Asset }
+      - { name: author, type: RELATION, relationTarget: Author }
+      - { name: parent, type: RELATION, relationTarget: Page }

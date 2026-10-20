@@ -1,0 +1,43 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Tess models for the Hygraph example (docs: Migrate from Hygraph).
+#   tess-transfer import hygraph-models.yaml --dry-run
+#   tess-transfer import hygraph-models.yaml
+version: 1
+components:
+  - apiId: Seo                       # basic component
+    fields:
+      - { name: metaTitle, type: TEXT, maxLength: 60 }
+      - { name: metaDescription, type: TEXT, maxLength: 160 }
+  - apiId: Hero                      # modular component (union member)
+    fields:
+      - { name: title, type: TEXT, required: true }
+      - { name: subtitle, type: TEXT, maxLength: null }
+  - apiId: Quote
+    fields:
+      - { name: text, type: TEXT, maxLength: null }
+      - { name: author, type: TEXT }
+contentTypes:
+  - apiId: Category
+    pluralApiId: categories
+    fields:
+      - { name: name, type: TEXT, required: true }
+      - { name: slug, type: TEXT, required: true, pattern: "^[a-z0-9-]+$" }
+  - apiId: Author
+    fields:
+      - { name: name, type: TEXT, required: true }
+      - { name: bio, type: TEXT, maxLength: null }
+  - apiId: Post
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 200 }
+      - { name: slug, type: TEXT, required: true, pattern: "^[a-z0-9-]+$" }
+      - { name: date, type: DATE }
+      - { name: tags, type: JSON }                                  # String, "allow multiple values"
+      - { name: body, type: MARKDOWN }                              # Rich Text `content`
+      - { name: seo, type: COMPONENT, component: Seo }
+      - { name: blocks, type: DYNAMIC_ZONE, components: [Hero, Quote] }
+      - { name: coverImage, type: RELATION, relationTarget: Asset }
+      - { name: category, type: RELATION, relationTarget: Category }
+      - { name: authors, type: RELATION, relationTarget: Author, many: true }

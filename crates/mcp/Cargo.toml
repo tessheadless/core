@@ -1,0 +1,36 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[package]
+name = "tess-mcp"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Model Context Protocol server exposing the Tess GraphQL API to AI agents."
+
+[dependencies]
+anyhow = "1.0.104"
+async-graphql = "7.2.1"
+http = "1"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+rmcp = { version = "3.5.1", features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
+schemars = "1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tess-graphql = { path = "../graphql" }
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "io-std"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+axum = "0.8.9"
+bytes = "1.12.1"
+tess-core = { path = "../core" }
+tess-auth = { path = "../auth" }
+getrandom = "0.4.3"
+http-body-util = "0.1"
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5.3", features = ["util"] }

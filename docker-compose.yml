@@ -1,0 +1,212 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Default: Tess alone, with its embedded RocksDB database and files on disk
+# (`docker compose up`). Optional services are compose profiles:
+#   docker compose --profile local up      # everything on this machine: Garage (S3),
+#                                          # Typesense, Valkey and n8n
+#   docker compose --profile local-commercial up   # the same without n8n (TESS_LICENSE=commercial)
+#   docker compose --profile postgres --profile search up
+#   docker compose --profile n8n up        # workflows (n8n), with TESS_N8N_URL
+#   docker compose --profile cache up      # response cache (Valkey), with TESS_CACHE=valkey;
+#                                          # cache-redis, cache-keydb, cache-dragonfly instead
+# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE / TESS_CACHE accordingly in `.env`
+# (`scripts/init-env.sh --local` writes a `.env` for the `local` profile).
+#
+# Images: ghcr.io/tessheadless/tess:<TESS_VERSION>[-<TESS_ARCH>] (see INSTALL.md).
+# From a source checkout, `docker compose up --build` builds them locally.
+services:
+  tess:
+    build: .
+    image: ${TESS_IMAGE:-ghcr.io/tessheadless/tess}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
+    env_file: .env
+    ports: ["8080:8080"]
+    volumes: ["tess-data:/data"]
+    depends_on:
+      # With Garage (profiles s3, local, local-commercial): start once its bucket is ready.
+      garage-init:
+        condition: service_completed_successfully
+        required: false
+    restart: unless-stopped
+
+  postgres:
+    profiles: [postgres]
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tess
+      POSTGRES_DB: tess
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "tess"]
+      interval: 5s
+
+  mysql:
+    profiles: [mysql]
+    image: mysql:8.4
+    environment:
+      MYSQL_USER: tess
+      MYSQL_DATABASE: tess
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes: ["mysql-data:/var/lib/mysql"]
+
+  mongo:
+    profiles: [mongodb]
+    image: mongo:8
+    volumes: ["mongo-data:/data/db"]
+
+  dynamodb:
+    profiles: [dynamodb]
+    image: amazon/dynamodb-local:latest
+    command:
+      [
+        "-jar",
+        "DynamoDBLocal.jar",
+        "-sharedDb",
+        "-dbPath",
+        "/home/dynamodblocal/data",
+      ]
+    volumes: ["dynamodb-data:/home/dynamodblocal/data"]
+    user: root
+
+  garage:
+    profiles: [s3, local, local-commercial]
+    image: dxflrs/garage:v2.1.0
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
+    volumes:
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+      - garage-data:/var/lib/garage
+    ports: ["3900:3900"]
+
+  # Creates the layout, the TESS_S3_BUCKET bucket and the TESS_S3_ACCESS_KEY_ID
+  # key in Garage, then exits (idempotent: runs at every start).
+  garage-init:
+    profiles: [s3, local, local-commercial]
+    image: curlimages/curl:8.11.1
+    entrypoint: ["/bin/sh", "/setup.sh"]
+    environment:
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
+      TESS_S3_BUCKET: ${TESS_S3_BUCKET:-tess-media}
+      TESS_S3_ACCESS_KEY_ID: ${TESS_S3_ACCESS_KEY_ID:-}
+      TESS_S3_SECRET_ACCESS_KEY: ${TESS_S3_SECRET_ACCESS_KEY:-}
+    volumes: ["./deploy/garage/setup.sh:/setup.sh:ro"]
+    depends_on: [garage]
+    restart: "no"
+
+  # Workflow automation, embedded in the admin UI at /admin/workflows.
+  # Set TESS_N8N_URL=http://n8n:5678 for the tess service (see .env.example).
+  n8n:
+    profiles: [n8n, local]
+    build:
+      context: .
+      dockerfile: deploy/n8n/Dockerfile
+    image: ${TESS_N8N_IMAGE:-ghcr.io/tessheadless/tess-n8n}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
+    environment:
+      # Tess serves n8n under /n8n/ (prefix stripped); n8n generates URLs with it.
+      N8N_PATH: /n8n/
+      N8N_EDITOR_BASE_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      N8N_PROXY_HOPS: 1
+      # Server-sent events go through the Tess proxy (WebSockets do not).
+      N8N_PUSH_BACKEND: sse
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      # `false` only for plain-HTTP local setups.
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
+    volumes: ["n8n-data:/home/node/.n8n"]
+    restart: unless-stopped
+
+  # Response cache: one of these servers (all speak the Redis protocol), with
+  # TESS_CACHE=<service> and TESS_CACHE_URL=redis://<service>:6379 in `.env`.
+  # Each one is a cache: no persistence, bounded memory (CACHE_MAXMEMORY),
+  # least recently used keys evicted first.
+  valkey: # --profile cache
+    profiles: [cache, cache-valkey, local, local-commercial]
+    image: valkey/valkey:8-alpine
+    command:
+      [
+        "valkey-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-${VALKEY_MAXMEMORY:-256mb}}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  redis: # --profile cache-redis
+    profiles: [cache-redis]
+    image: redis:8-alpine
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  keydb: # --profile cache-keydb
+    profiles: [cache-keydb]
+    # KeyDB publishes no versioned multi-arch tag; its last release is 6.3.4.
+    image: eqalpha/keydb:latest
+    command:
+      [
+        "keydb-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  dragonfly: # --profile cache-dragonfly
+    profiles: [cache-dragonfly]
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2
+    # Cache mode: evicts the least recently used keys at the memory limit.
+    # Dragonfly needs 256 MiB per thread: raise DRAGONFLY_THREADS with it.
+    command:
+      [
+        "--cache_mode=true",
+        "--maxmemory=${CACHE_MAXMEMORY:-256mb}",
+        "--proactor_threads=${DRAGONFLY_THREADS:-1}",
+        "--dbfilename=",
+      ]
+    ulimits:
+      memlock: -1
+    restart: unless-stopped
+
+  typesense:
+    profiles: [search, local, local-commercial]
+    image: typesense/typesense:29.0
+    environment:
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-}
+      TYPESENSE_DATA_DIR: /data
+    volumes: ["typesense-data:/data"]
+
+volumes:
+  tess-data:
+  pg-data:
+  mysql-data:
+  mongo-data:
+  dynamodb-data:
+  garage-data:
+  typesense-data:
+  n8n-data:
