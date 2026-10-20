@@ -5661,6 +5661,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tess-forms"
+version = "0.1.1"
+dependencies = [
+ "chrono",
+ "regex",
+ "serde",
+ "serde_json",
+ "tess-core",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "tess-graphql"
 version = "0.1.1"
 dependencies = [
@@ -5677,6 +5690,7 @@ dependencies = [
  "tempfile",
  "tess-auth",
  "tess-core",
+ "tess-forms",
  "tess-i18n",
  "tess-media",
  "tess-plugins",
@@ -5797,6 +5811,7 @@ dependencies = [
  "async-graphql-axum",
  "axum",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "lambda_http",
  "reqwest",
@@ -5807,6 +5822,7 @@ dependencies = [
  "tess-auth",
  "tess-cache",
  "tess-core",
+ "tess-forms",
  "tess-graphql",
  "tess-i18n",
  "tess-mcp",
@@ -5822,6 +5838,7 @@ dependencies = [
  "tower-http 0.7.1",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

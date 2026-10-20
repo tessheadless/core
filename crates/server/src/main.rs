@@ -7,6 +7,7 @@
 
 mod cache;
 mod config;
+mod forms;
 mod integrations;
 mod routes;
 
@@ -209,7 +210,13 @@ fn router(state: Arc<AppState>, config: &Config, limits: &BodyLimits) -> Router 
             "/i18n/{format}/{*path}",
             get(integrations::serve_translations),
         )
-        .route("/api/i18n/export", get(integrations::download_export));
+        .route("/api/i18n/export", get(integrations::download_export))
+        .route(
+            "/api/forms/{slug}",
+            get(forms::get_form)
+                .post(forms::submit_form)
+                .layer(DefaultBodyLimit::max(64 * 1024)),
+        );
     if let Some(proxy) = &state.n8n {
         // n8n runs with N8N_PATH = this path; the prefix is stripped when forwarding.
         let path = proxy.path().to_string();
@@ -358,6 +365,8 @@ async fn main() -> Result<()> {
             ))
         }),
         webhooks,
+        forms: config::forms_config()?
+            .map(|cfg| Arc::new(tess_forms::FormsService::new(storage.clone(), cfg))),
         workflows: n8n.as_ref().map(|n| tess_graphql::WorkflowsInfo {
             provider: "n8n".into(),
             editor_url: format!("{}/", n.path),
@@ -419,9 +428,13 @@ async fn main() -> Result<()> {
         storage = state.storage_name,
         "listening"
     );
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    // The client address feeds the forms rate limit.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
