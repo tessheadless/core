@@ -44,7 +44,7 @@ today.
 :::
 
 For Enterprise licensing and hosting, see
-[tessheadless.com](https://tessheadless.com).
+<a href="/">tessheadless.com</a>.
 
 ## Plugins and editions
 

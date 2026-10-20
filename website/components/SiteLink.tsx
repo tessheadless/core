@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import type { SiteLink as Link } from "../lib/content";
-import { isExternal } from "../lib/meta";
+import { isExternal, isOtherApp } from "../lib/meta";
 
 /** A button-styled link; `link` may be null (optional component field). */
 export function ButtonLink({ link, className }: { link: Link | null | undefined; className: string }) {
@@ -16,13 +16,16 @@ export function ButtonLink({ link, className }: { link: Link | null | undefined;
   );
 }
 
+/** `rel` of a link: other sites, and the docs (no client-side navigation). */
+export function linkRel(href: string): string | undefined {
+  if (isExternal(href)) return "noopener";
+  if (isOtherApp(href)) return "external";
+  return undefined;
+}
+
 export function A({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
-  return isExternal(href) ? (
-    <a href={href} className={className} rel="noopener">
-      {children}
-    </a>
-  ) : (
-    <a href={href} className={className}>
+  return (
+    <a href={href} className={className} rel={linkRel(href)}>
       {children}
     </a>
   );

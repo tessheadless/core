@@ -6,21 +6,21 @@
     "navigation": [
       { "label": "Features", "url": "/features" },
       { "label": "Compare", "url": "/compare" },
-      { "label": "Docs", "url": "https://tessheadless.com/docs/" }
+      { "label": "Docs", "url": "/docs/" }
     ],
-    "cta": { "label": "Get started", "url": "https://tessheadless.com/docs/getting-started/quick-start" },
+    "cta": { "label": "Get started", "url": "/docs/getting-started/quick-start" },
     "footerLinks": [
-      { "label": "Documentation", "url": "https://tessheadless.com/docs/" },
-      { "label": "Quick start", "url": "https://tessheadless.com/docs/getting-started/quick-start" },
-      { "label": "GraphQL API", "url": "https://tessheadless.com/docs/developers/graphql-api" },
-      { "label": "Import & export", "url": "https://tessheadless.com/docs/devops/import-export" },
-      { "label": "Community & Enterprise", "url": "https://tessheadless.com/docs/editions" },
-      { "label": "tessheadless.com", "url": "https://tessheadless.com" },
+      { "label": "Documentation", "url": "/docs/" },
+      { "label": "Quick start", "url": "/docs/getting-started/quick-start" },
+      { "label": "GraphQL API", "url": "/docs/developers/graphql-api" },
+      { "label": "Import & export", "url": "/docs/devops/import-export" },
+      { "label": "Community & Enterprise", "url": "/docs/editions" },
+      { "label": "tessheadless.com", "url": "/" },
       { "label": "GitHub", "url": "https://github.com/tessheadless/core" },
       { "label": "Discord", "url": "https://discord.gg/CyUjPVXK65" }
     ],
     "footerText": "© 2026 Tess Dev Team. Community edition for personal use, Enterprise edition for commercial use.",
-    "docsUrl": "https://tessheadless.com/docs/"
+    "docsUrl": "/docs/"
   },
   "features": [
     {
@@ -121,7 +121,7 @@
           "subtitle": "Tess is a self-hostable headless CMS in a single Rust binary. Define your content models at runtime and get a typed GraphQL API instantly, on the database you already run.",
           "primary": {
             "label": "Start in 5 minutes",
-            "url": "https://tessheadless.com/docs/getting-started/quick-start"
+            "url": "/docs/getting-started/quick-start"
           },
           "secondary": { "label": "Compare with other CMSs", "url": "/compare" },
           "code": "query {\n  posts(where: { title_contains: \"tess\" }, first: 3) {\n    total\n    items {\n      title\n      publishedAt\n      authors { name }\n    }\n  }\n}"
@@ -150,7 +150,7 @@
           "items": [
             {
               "question": "Is Tess free?",
-              "answer": "The **Community** edition is free for personal use. Commercial use needs the **Enterprise** edition, which also adds advanced features, official plugins and hosting. See [Community & Enterprise](https://tessheadless.com/docs/editions)."
+              "answer": "The **Community** edition is free for personal use. Commercial use needs the **Enterprise** edition, which also adds advanced features, official plugins and hosting. See [Community & Enterprise](/docs/editions)."
             },
             {
               "question": "Which database do I need?",
@@ -170,8 +170,8 @@
           "__typename": "SiteCallToAction",
           "title": "Run Tess in one command",
           "body": "`docker compose up`, open the admin, create your first model.",
-          "primary": { "label": "Quick start", "url": "https://tessheadless.com/docs/getting-started/quick-start" },
-          "secondary": { "label": "Read the docs", "url": "https://tessheadless.com/docs/" }
+          "primary": { "label": "Quick start", "url": "/docs/getting-started/quick-start" },
+          "secondary": { "label": "Read the docs", "url": "/docs/" }
         }
       ]
     },
@@ -200,7 +200,7 @@
           "__typename": "SiteCallToAction",
           "title": "See it on your machine",
           "body": "The quick start takes a few minutes, with Docker or without.",
-          "primary": { "label": "Quick start", "url": "https://tessheadless.com/docs/getting-started/quick-start" }
+          "primary": { "label": "Quick start", "url": "/docs/getting-started/quick-start" }
         }
       ]
     }
@@ -258,8 +258,8 @@
       "chooseThem": "- You want a large plugin marketplace and community.\n- You need localized content today.\n- Your team prefers to customize the CMS itself in JavaScript/TypeScript.",
       "chooseTess": "- Editors or admins must change models **in production**, without a redeploy.\n- You want a GraphQL-first API on MongoDB, DynamoDB or an embedded database.\n- You want a review workflow without a paid plan, or to run on AWS Lambda.",
       "migration": "Strapi types map closely to Tess: `string`/`text` → `TEXT`, `richtext` → `MARKDOWN`, `blocks` → `JSON`, `enumeration` → `ENUM`, `relation` → `RELATION`, `media` → `RELATION` to `Asset`, `component` → `COMPONENT`, `dynamiczone` → `DYNAMIC_ZONE`. Write your models in the `tess-transfer` YAML format and import them in one command, then copy the entries through the GraphQL API.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
-      "migrationGuideUrl": "https://tessheadless.com/docs/migration/strapi",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/strapi",
       "asOf": "2026-10-20",
       "order": 1
     },
@@ -310,8 +310,8 @@
       "chooseThem": "- You don't want to operate any infrastructure.\n- You need content federation or built-in localization.",
       "chooseTess": "- Your content must stay on your own infrastructure or database.\n- You want the same GraphQL-first experience without usage-based pricing.",
       "migration": "Hygraph's schema translates directly: models become content types, components become components, and union/modular fields become `DYNAMIC_ZONE` fields. Describe them in the `tess-transfer` YAML format, import them, then copy the entries with a GraphQL-to-GraphQL script.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
-      "migrationGuideUrl": "https://tessheadless.com/docs/migration/hygraph",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/hygraph",
       "asOf": "2026-10-20",
       "order": 2
     },
@@ -357,8 +357,8 @@
       "chooseThem": "- You want a website with themes, built by non-developers.\n- You rely on a specific WordPress plugin or the huge ecosystem.",
       "chooseTess": "- Your content feeds several front ends (sites, mobile apps, kiosks).\n- You want structured, validated content and a typed API instead of posts and meta fields.",
       "migration": "Model your post types and custom fields as Tess content types (ACF field groups map well to components), import them with `tess-transfer`, then move the posts from the WordPress REST API to the Tess GraphQL API with a short script.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
-      "migrationGuideUrl": "https://tessheadless.com/docs/migration/wordpress",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/wordpress",
       "asOf": "2026-10-20",
       "order": 3
     },
@@ -396,7 +396,7 @@
       "chooseThem": "- You need an enterprise SaaS with SLAs, many locales and a large app marketplace.",
       "chooseTess": "- You want to own the infrastructure and the data.\n- You prefer a predictable license to usage-based limits.",
       "migration": "Contentful content types and their fields map to Tess content types; references become `RELATION` fields and assets become `Asset` relations. Import the models with `tess-transfer`, then copy entries with the Contentful export and the Tess GraphQL API.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
+      "importExportUrl": "/docs/devops/import-export",
       "asOf": "2026-10-20",
       "order": 4
     },
@@ -437,7 +437,7 @@
       "chooseThem": "- You must expose an existing SQL database as is.\n- You want built-in automation flows.",
       "chooseTess": "- You start from content models, not from existing tables.\n- You need NoSQL (MongoDB, DynamoDB) or an embedded database, or AWS Lambda.",
       "migration": "Each Directus collection becomes a Tess content type, and its relational fields become `RELATION` fields. Write them in the `tess-transfer` YAML format, import them, then copy the items through both GraphQL APIs.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
+      "importExportUrl": "/docs/devops/import-export",
       "asOf": "2026-10-20",
       "order": 5
     },
@@ -478,7 +478,7 @@
       "chooseThem": "- Your project is a Next.js app and you want the schema in your repository as TypeScript.",
       "chooseTess": "- Admins must evolve models without developers or redeploys.\n- Your front ends are not all JavaScript, or you want the CMS separate from the app.",
       "migration": "Payload collections and blocks map to Tess content types and components (blocks fields become `DYNAMIC_ZONE`). Translate the config into the `tess-transfer` YAML format, import it, and copy documents through the GraphQL APIs.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
+      "importExportUrl": "/docs/devops/import-export",
       "asOf": "2026-10-20",
       "order": 6
     },
@@ -519,7 +519,7 @@
       "chooseThem": "- You need real-time collaboration and a deeply customized editing studio.",
       "chooseTess": "- You want your content in your own database, with a standard GraphQL API and no query language to learn.",
       "migration": "Sanity document types and objects map to Tess content types and components; arrays of mixed types become `DYNAMIC_ZONE` fields. Import the models with `tess-transfer`, then copy documents from a Sanity export through the Tess GraphQL API.",
-      "importExportUrl": "https://tessheadless.com/docs/devops/import-export",
+      "importExportUrl": "/docs/devops/import-export",
       "asOf": "2026-10-20",
       "order": 7
     }

@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-tess",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "n8n nodes for Tess, the GraphQL-first headless CMS: trigger workflows on content, model and translation events, and read or write content.",
   "keywords": ["n8n-community-node-package", "tess", "cms", "headless-cms", "graphql"],
   "author": "Tess Dev Team",

@@ -93,7 +93,9 @@ const config: Config = {
         {to: doc('category/developers'), label: 'API', position: 'left'},
         {to: doc('category/plugins'), label: 'Plugins', position: 'left'},
         {to: doc('editions'), label: 'Community & Enterprise', position: 'right'},
-        {href: 'https://tessheadless.com', label: 'tessheadless.com', position: 'right'},
+        // The website, at the root of the same domain: plain HTML, so Docusaurus
+        // doesn't treat `/` as one of its own routes (it would add /docs/).
+        {type: 'html', position: 'right', value: '<a class="navbar__item navbar__link" href="/">tessheadless.com</a>'},
         {type: 'search', position: 'right'},
       ],
     },
@@ -122,13 +124,13 @@ const config: Config = {
         {
           title: 'Community',
           items: [
-            {label: 'tessheadless.com', href: 'https://tessheadless.com'},
+            {html: '<a class="footer__link-item" href="/">tessheadless.com</a>'},
             {label: 'GitHub', href: 'https://github.com/tessheadless/core'},
             {label: 'Discord', href: 'https://discord.gg/CyUjPVXK65'},
           ],
         },
       ],
-      copyright: `Copyright © ${copyrightYears} Tess Dev Team · <a href="https://tessheadless.com">tessheadless.com</a> · Community edition for personal use, Enterprise edition for commercial use.`,
+      copyright: `Copyright © ${copyrightYears} Tess Dev Team · <a href="/">tessheadless.com</a> · Community edition for personal use, Enterprise edition for commercial use.`,
     },
     prism: {
       theme: prismThemes.github,

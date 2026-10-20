@@ -3,6 +3,7 @@
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
 import { useData } from "vike-react/useData";
+import { linkRel } from "../../components/SiteLink";
 import { HeroBackdrop, StaggerChild, StaggerGroup, StaggerItem, StaggerList } from "../../components/Motion";
 import { formatDate } from "../../lib/format";
 import type { Data } from "./+data";
@@ -60,11 +61,15 @@ export default function Page() {
                 </table>
                 <div className="card-actions mt-4 items-center justify-between">
                   {c.migrationGuideUrl ? (
-                    <a href={c.migrationGuideUrl} className="link link-primary text-sm font-semibold">
+                    <a
+                      href={c.migrationGuideUrl}
+                      rel={linkRel(c.migrationGuideUrl)}
+                      className="link link-primary text-sm font-semibold"
+                    >
                       Migration guide: from {c.name} to Tess
                     </a>
                   ) : (
-                    <a href={c.importExportUrl} className="link link-primary text-sm">
+                    <a href={c.importExportUrl} rel={linkRel(c.importExportUrl)} className="link link-primary text-sm">
                       Moving from {c.name}: import &amp; export tools
                     </a>
                   )}
