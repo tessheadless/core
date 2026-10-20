@@ -1,0 +1,716 @@
+{
+  "settings": {
+    "siteName": "Tess",
+    "tagline": "El CMS headless GraphQL-first en un único binario de Rust",
+    "description": "Tess es un CMS headless GraphQL-first, autoalojable y escrito en Rust. Define modelos de contenido en tiempo de ejecución, publica con flujos de revisión y ejecútalo en Docker, una VM o AWS Lambda.",
+    "navigation": [
+      {
+        "label": "Funciones",
+        "url": "/features"
+      },
+      {
+        "label": "IA y MCP",
+        "url": "/ai"
+      },
+      {
+        "label": "Comparar",
+        "url": "/compare"
+      },
+      {
+        "label": "Docs",
+        "url": "/docs/"
+      }
+    ],
+    "cta": {
+      "label": "Empezar",
+      "url": "/docs/getting-started/quick-start"
+    },
+    "footerLinks": [
+      {
+        "label": "Documentación",
+        "url": "/docs/"
+      },
+      {
+        "label": "Inicio rápido",
+        "url": "/docs/getting-started/quick-start"
+      },
+      {
+        "label": "API GraphQL",
+        "url": "/docs/developers/graphql-api"
+      },
+      {
+        "label": "Importar y exportar",
+        "url": "/docs/devops/import-export"
+      },
+      {
+        "label": "Community y Enterprise",
+        "url": "/docs/editions"
+      },
+      {
+        "label": "tessheadless.com",
+        "url": "/"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/tessheadless/core"
+      },
+      {
+        "label": "Discord",
+        "url": "https://discord.gg/CyUjPVXK65"
+      }
+    ],
+    "footerText": "© 2026 Tess Dev Team. Edición Community para uso personal, edición Enterprise para uso comercial.",
+    "docsUrl": "/docs/"
+  },
+  "features": [
+    {
+      "title": "Modelos en tiempo de ejecución",
+      "summary": "Crea tipos de contenido en el panel de administración o mediante la API, en producción. El esquema GraphQL se regenera al momento: sin recompilar ni volver a desplegar.",
+      "icon": "BOLT",
+      "highlighted": true,
+      "order": 2
+    },
+    {
+      "title": "GraphQL primero",
+      "summary": "Consultas tipadas, filtros, ordenación, paginación, relaciones y mutaciones generadas para cada modelo, con el IDE GraphiQL integrado.",
+      "icon": "GRAPH",
+      "highlighted": true,
+      "order": 3
+    },
+    {
+      "title": "Tu base de datos",
+      "summary": "PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB o RocksDB integrado. Todos los backends pasan la misma batería de pruebas de conformidad.",
+      "icon": "DATABASE",
+      "highlighted": true,
+      "order": 4
+    },
+    {
+      "title": "Flujos de revisión",
+      "summary": "Borrador y publicación para cada entrada, más un flujo opcional enviar → aprobar por tipo de contenido, en todas las ediciones.",
+      "icon": "WORKFLOW",
+      "highlighted": true,
+      "order": 5
+    },
+    {
+      "title": "Roles y tokens con alcance",
+      "summary": "Roles Owner, Admin, Contributor, Reviewer y Member, limitados a ciertos tipos de contenido si hace falta, y tokens de API con alcance limitado para las máquinas.",
+      "icon": "USERS",
+      "highlighted": false,
+      "order": 6
+    },
+    {
+      "title": "Plugins aislados",
+      "summary": "Plugins WebAssembly que los administradores instalan en tiempo de ejecución, escritos en Rust, Go, JavaScript y más, con límites de tiempo y de memoria.",
+      "icon": "PLUG",
+      "highlighted": true,
+      "order": 7
+    },
+    {
+      "title": "Serverless o contenedor",
+      "summary": "Un solo binario funciona como servidor HTTP (Docker, VM, Kubernetes) o como función de AWS Lambda.",
+      "icon": "CLOUD",
+      "highlighted": false,
+      "order": 8
+    },
+    {
+      "title": "Biblioteca multimedia",
+      "summary": "Subidas a almacenamientos compatibles con S3 (Garage, MinIO, AWS S3, Cloudflare R2) o al sistema de archivos local, con subidas directas prefirmadas.",
+      "icon": "IMAGE",
+      "highlighted": false,
+      "order": 9
+    },
+    {
+      "title": "Búsqueda de texto completo",
+      "summary": "Indexación con Typesense sincronizada con tu contenido, detrás de una interfaz de motor de búsqueda intercambiable.",
+      "icon": "SEARCH",
+      "highlighted": false,
+      "order": 10
+    },
+    {
+      "title": "Privado por diseño",
+      "summary": "Identificadores opacos, cifrados y con caducidad en la API: los identificadores de la base de datos nunca salen del servidor.",
+      "icon": "LOCK",
+      "highlighted": false,
+      "order": 11
+    },
+    {
+      "title": "Gestionado con IA",
+      "summary": "Un servidor MCP integrado permite a Claude, Cursor y cualquier cliente MCP leer tus modelos y crear, editar y publicar contenido en lenguaje natural, con los mismos permisos que la API.",
+      "icon": "ROBOT",
+      "highlighted": true,
+      "order": 1
+    },
+    {
+      "title": "Modelos portables",
+      "summary": "tess-transfer exporta los modelos de contenido y los usuarios a YAML o JSON, para versionarlos o copiarlos entre instancias.",
+      "icon": "CODE",
+      "highlighted": false,
+      "order": 13
+    }
+  ],
+  "pages": [
+    {
+      "slug": "home",
+      "title": "Tess: el CMS headless GraphQL-first",
+      "description": "CMS headless autoalojable en Rust: modelos de contenido en tiempo de ejecución, API GraphQL generada, flujos de revisión, seis backends de base de datos, Docker o AWS Lambda.",
+      "sections": [
+        {
+          "__typename": "SiteHero",
+          "eyebrow": "CMS headless · Rust · GraphQL · MCP",
+          "title": "Cada entrada es una tesela. Tus aplicaciones son el mosaico.",
+          "subtitle": "Tess es un CMS headless autoalojable en un único binario de Rust. Define tus modelos de contenido en tiempo de ejecución y obtén al instante una API GraphQL tipada, sobre la base de datos que ya usas. **Y gestiónalo todo hablando con tu asistente de IA**, gracias al servidor MCP integrado.",
+          "primary": {
+            "label": "Empieza en 5 minutos",
+            "url": "/docs/getting-started/quick-start"
+          },
+          "secondary": {
+            "label": "Comparar con otros CMS",
+            "url": "/compare"
+          },
+          "code": "query {\n  posts(where: { title_contains: \"tess\" }, first: 3) {\n    total\n    items {\n      title\n      publishedAt\n      authors { name }\n    }\n  }\n}"
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Gestiona tu sitio web hablando con tu IA",
+          "body": "Pide a Claude, Cursor o cualquier cliente MCP que escriba, edite y publique tu contenido: Tess habla el **Model Context Protocol** desde el primer momento. Tu asistente descubre por sí mismo tus modelos de contenido y luego lee y escribe con la misma API y los mismos permisos que tus aplicaciones.\n\n- **Sin plugins ni código de integración:** actívalo con `TESS_MCP=true` y añade una entrada a tu cliente de IA.\n- **Seguro por defecto:** dale al asistente un token Contributor y solo podrá escribir borradores, que tu equipo revisa y publica.\n- **Funciona con cada modelo** que creas, en cuanto lo creas.\n\n[Mira cómo funciona →](/ai)",
+          "language": "chat",
+          "code": "Tú:  Busca todas las entradas publicadas sin meta\n     description y escribe una para cada una,\n     como borrador.\n\nIA:  He encontrado 12 entradas. He redactado una\n     descripción para cada una y las he enviado\n     a revisión.\n\nTú:  Añade un banner de «Rebajas de verano» a la\n     página de inicio para la semana que viene\n     y enséñame el borrador."
+        },
+        {
+          "__typename": "SiteFeatureGrid",
+          "title": "Todo lo que necesita un equipo de contenido, nada que reconstruir",
+          "subtitle": "Tess mantiene las reglas de negocio en un solo lugar, así que la API GraphQL, el panel de administración, las subidas y los plugins se comportan igual.",
+          "highlightedOnly": true
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Un modelo de contenido está a una mutación",
+          "body": "Crea un tipo de contenido y Tess genera al instante sus consultas, filtros, ordenación, paginación y mutaciones, en cada instancia.\n\n¿Prefieres hacer clic? El panel de administración tiene un editor de modelos. ¿Prefieres archivos? Guarda tus modelos en YAML e impórtalos con `tess-transfer`.",
+          "language": "graphql",
+          "code": "mutation {\n  createContentType(input: {\n    apiId: \"Post\"\n    workflow: true\n    fields: [\n      { name: \"title\", type: TEXT, required: true }\n      { name: \"body\", type: MARKDOWN }\n      { name: \"cover\", type: RELATION, relationTarget: \"Asset\" }\n      { name: \"authors\", type: RELATION, relationTarget: \"Author\", many: true }\n    ]\n  }) { apiId }\n}"
+        },
+        {
+          "__typename": "SiteComparisonTeaser",
+          "title": "¿Cómo se compara Tess?",
+          "subtitle": "Comparaciones honestas y fechadas con los CMS que probablemente conoces, incluido cuándo son la mejor opción."
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Dato curioso: Tess funciona en una Raspberry Pi 3",
+          "body": "Quien creó Tess tiene su propia instancia funcionando en una **Raspberry Pi 3**, sin n8n: un binario de Rust, una base de datos integrada y nada más que instalar. En reposo usa unos 30 MB de memoria, así que incluso una placa de 1 GB tiene margen de sobra.\n\n- **Sin servidor de base de datos:** RocksDB y SQLite vienen integrados.\n- **Versiones ARM nativas:** binarios `arm64` y `armv7` e imágenes Docker `arm64` en cada versión.\n- **También Pi 4 y 5**, con espacio para n8n, PostgreSQL y búsqueda en las placas más grandes.\n\n[Ejecuta Tess en una Raspberry Pi →](/docs/devops/raspberry-pi)",
+          "language": "shell",
+          "code": "# En la Pi (Raspberry Pi OS de 64 bits)\nVERSION=0.1.1\ncurl -LO https://github.com/tessheadless/core/releases/download/v$VERSION/tess-$VERSION-linux-arm64.tar.xz\ntar -xJf tess-$VERSION-linux-arm64.tar.xz\ncd tess-$VERSION-linux-arm64\n\ncp .env.example .env   # añade tus secretos\nset -a && . ./.env && set +a && ./tess\n# → http://raspberrypi.local:8080/admin/"
+        },
+        {
+          "__typename": "SiteFaq",
+          "title": "Preguntas",
+          "items": [
+            {
+              "question": "¿Tess es gratis?",
+              "answer": "La edición **Community** es gratuita para uso personal. El uso comercial requiere la edición **Enterprise**, que además añade funciones avanzadas, plugins oficiales y alojamiento. Consulta [Community y Enterprise](/docs/editions) (en inglés)."
+            },
+            {
+              "question": "¿Pueden las herramientas de IA gestionar mi contenido?",
+              "answer": "Sí. Tess tiene un [servidor MCP](/ai) integrado: conecta Claude, Cursor o cualquier cliente MCP con un token de API y pídele en lenguaje natural que cree, edite, traduzca o publique contenido. Puede hacer exactamente lo que permite el rol del token, nada más."
+            },
+            {
+              "question": "¿Qué base de datos necesito?",
+              "answer": "Ninguna para empezar: Tess integra RocksDB. En producción usa PostgreSQL, MySQL, MongoDB o DynamoDB, o quédate con SQLite o RocksDB para sitios pequeños."
+            },
+            {
+              "question": "¿Puede Tess funcionar en una Raspberry Pi?",
+              "answer": "Sí. Quien creó Tess lo tiene funcionando en una Raspberry Pi 3. Cada versión incluye binarios nativos de Linux `arm64` y `armv7` e imágenes Docker `arm64`, para las Pi 3, 4 y 5. Consulta [Raspberry Pi y dispositivos pequeños](/docs/devops/raspberry-pi) (en inglés)."
+            },
+            {
+              "question": "¿Hay una API REST?",
+              "answer": "El contenido se sirve solo mediante GraphQL. Existen endpoints REST para datos binarios: subida y descarga de archivos multimedia y módulos de plugins."
+            },
+            {
+              "question": "¿Puedo traer mis modelos desde otro CMS?",
+              "answer": "Descríbelos en el formato YAML de `tess-transfer` e impórtalos con un solo comando. Cada [página de comparación](/compare) explica cómo se traslada un modelo a Tess."
+            }
+          ]
+        },
+        {
+          "__typename": "SiteCallToAction",
+          "title": "Ejecuta Tess con un solo comando",
+          "body": "`docker compose up`, abre el panel de administración y crea tu primer modelo.",
+          "primary": {
+            "label": "Inicio rápido",
+            "url": "/docs/getting-started/quick-start"
+          },
+          "secondary": {
+            "label": "Leer la documentación",
+            "url": "/docs/"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "features",
+      "title": "Funciones",
+      "description": "Modelos de contenido en tiempo de ejecución, API GraphQL generada, flujos de revisión, roles, seis backends de base de datos, multimedia, búsqueda, plugins WebAssembly y compatibilidad con AWS Lambda.",
+      "sections": [
+        {
+          "__typename": "SiteHero",
+          "eyebrow": "Funciones",
+          "title": "Un binario, toda la plataforma de contenido",
+          "subtitle": "Tess reúne la API, el panel de administración y las reglas de negocio. Elige tu base de datos, tu almacenamiento multimedia y tu alojamiento."
+        },
+        {
+          "__typename": "SiteFeatureGrid",
+          "title": "Todas las funciones",
+          "highlightedOnly": false
+        },
+        {
+          "__typename": "SiteRichText",
+          "title": "Tipos de campo",
+          "body": "`TEXT` (límites de longitud, formato por regex), `MARKDOWN` (HTML sin procesar rechazado), `INT`, `FLOAT`, `BOOLEAN`, `DATETIME`, `DATE`, `UUID`, `PASSWORD` (con hash, solo escritura), `JSON`, `ENUM`, `RELATION` (simple o múltiple), `COMPONENT` (grupos de campos reutilizables, simples o repetibles) y `DYNAMIC_ZONE` (una lista que mezcla componentes). Las páginas de este sitio están hechas con zonas dinámicas."
+        },
+        {
+          "__typename": "SiteCallToAction",
+          "title": "Pruébalo en tu equipo",
+          "body": "El inicio rápido lleva unos minutos, con o sin Docker.",
+          "primary": {
+            "label": "Inicio rápido",
+            "url": "/docs/getting-started/quick-start"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "ai",
+      "title": "Gestiona tu sitio web con IA",
+      "description": "Tess tiene un servidor MCP integrado: deja que Claude, Cursor o cualquier cliente MCP cree, edite y publique tu contenido en lenguaje natural, de forma segura.",
+      "sections": [
+        {
+          "__typename": "SiteHero",
+          "eyebrow": "Servidor MCP integrado",
+          "title": "Tu sitio web, gestionado hablando con tu IA.",
+          "subtitle": "Tess habla el **Model Context Protocol**, el estándar abierto que usan los asistentes de IA para trabajar con herramientas. Conecta Claude, Codex, OpenCode, Pi o cualquier cliente MCP en dos minutos y pide en lenguaje natural: *«redacta una entrada sobre nuestra nueva versión»*, *«corrige las erratas de la página de precios»*, *«¿qué productos no tienen imagen?»*. Sin plugins que instalar ni código que escribir.",
+          "primary": {
+            "label": "Conecta tu IA",
+            "url": "/docs/developers/mcp"
+          },
+          "secondary": {
+            "label": "Empieza en 5 minutos",
+            "url": "/docs/getting-started/quick-start"
+          },
+          "code": "Tú:  Busca todas las entradas publicadas sin meta\n     description y escribe una para cada una,\n     como borrador.\n\nIA:  He encontrado 12 entradas. He redactado una\n     descripción para cada una y las he enviado\n     a revisión.\n\nTú:  Añade un banner de «Rebajas de verano» a la\n     página de inicio para la semana que viene\n     y enséñame el borrador.",
+          "codeLanguage": "chat"
+        },
+        {
+          "__typename": "SiteRichText",
+          "title": "Lo que puedes pedir",
+          "body": "Tu asistente lee primero tus modelos de contenido, así que conoce tus campos, relaciones y componentes sin ninguna configuración. Después trabaja como un editor que nunca se cansa:\n\n- **Escribir:** *«Redacta tres entradas de blog a partir de estas notas de versión, con un resumen y etiquetas.»*\n- **Editar a gran escala:** *«Todas las descripciones de producto de más de 300 palabras: acórtalas y mantén el tono.»*\n- **Revisar:** *«¿Qué páginas publicadas no tienen meta description ni imagen de portada?»*\n- **Modelar:** *«Añade un tipo de contenido FAQ con una pregunta, una respuesta y una categoría.»* (con un token Admin)\n- **Publicar:** *«Publica los borradores que aprobé esta mañana.»*\n- **Responder preguntas:** *«¿Cuántos artículos publicamos cada mes este año?»*\n\nFunciona con cada modelo de contenido que creas, en cuanto lo creas: el servidor MCP expone toda tu API GraphQL mediante dos herramientas genéricas, `get_schema` y `graphql_query`."
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Listo en dos minutos",
+          "body": "1. **Actívalo** en la configuración del servidor: `TESS_MCP=true`.\n2. **Crea un token de API** para tu asistente en el panel de administración (**API tokens**), con el rol que necesita: Contributor para escribir borradores, Member para solo lectura.\n3. **Añade Tess a tu cliente de IA**: la URL de tu servidor y el token en una cabecera `Authorization: Bearer`, como en el ejemplo. Claude Code, OpenCode, Codex y Pi lo aceptan en una sola línea de configuración.\n\nEso es todo: tu asistente ya ve tu contenido, con exactamente los permisos de su token. Para los clientes que solo ejecutan programas locales, como Claude Desktop, el comando `tess mcp` hace lo mismo a través de un pequeño proxy local.\n\n[Leer la guía de MCP →](/docs/developers/mcp) (en inglés)",
+          "language": "json",
+          "code": "{\n  \"mcpServers\": {\n    \"tess\": {\n      \"type\": \"http\",\n      \"url\": \"https://cms.example.com/mcp\",\n      \"headers\": { \"Authorization\": \"Bearer tess_t1_…\" }\n    }\n  }\n}"
+        },
+        {
+          "__typename": "SiteRichText",
+          "title": "Una IA que trabaja para ti, no a tus espaldas",
+          "body": "Dar a una IA acceso a tu sitio web no debería significar perder el control. Con Tess no es así:\n\n- **Las mismas reglas para todos.** El asistente usa un token de API, y Tess aplica el rol y el alcance de ese token a cada llamada. Un token Member lee; un token Contributor escribe borradores, solo en los tipos de contenido que permites.\n- **La última palabra es humana.** Con los flujos de revisión, los cambios de la IA son borradores enviados a revisión: tu equipo los aprueba antes de que nada se publique.\n- **Todo queda registrado.** Cada cambio guarda quién lo hizo, así que siempre sabes qué ha hecho el asistente y puedes revocar su token con un clic.\n- **Tus datos siguen siendo tuyos.** Tess funciona en tus servidores y solo habla con el cliente de IA que conectas, y únicamente con el contenido al que llega su token."
+        },
+        {
+          "__typename": "SiteFaq",
+          "title": "Preguntas sobre IA y MCP",
+          "items": [
+            {
+              "question": "¿Qué herramientas de IA funcionan con Tess?",
+              "answer": "Cualquier cliente compatible con el Model Context Protocol: Claude Code, Claude Desktop, OpenCode, Codex, Pi, Cursor y más. Los clientes que admiten servidores remotos se conectan directamente a `https://tu-servidor/mcp`, con tu token de API en una cabecera `Authorization: Bearer`; otros, como Claude Desktop, ejecutan el proxy local `tess mcp`. La [guía de MCP](/docs/developers/mcp) (en inglés) incluye la configuración de cada uno."
+            },
+            {
+              "question": "¿Cómo inicia sesión mi asistente de IA en Tess?",
+              "answer": "Con un token de API que creas en el panel de administración. El cliente lo envía en la cabecera `Authorization: Bearer` de cada petición, así Tess sabe qué token, y qué rol, está llamando. Guárdalo en una variable de entorno en lugar de en un archivo de configuración y revócalo con un clic si hace falta. Sin token, un asistente solo puede leer el contenido publicado."
+            },
+            {
+              "question": "¿El servidor MCP forma parte de la edición Community?",
+              "answer": "Sí. Está integrado en Tess, en todas las ediciones: sin complementos ni servicios adicionales. Permanece desactivado hasta que defines `TESS_MCP=true`."
+            },
+            {
+              "question": "¿Puede la IA borrar o estropear mi contenido?",
+              "answer": "Solo si le das un token que lo permita. Usa un token Contributor limitado a unos pocos tipos de contenido y activa los flujos de revisión: así la IA escribe borradores que tu equipo revisa y publica."
+            },
+            {
+              "question": "¿Funciona con mis propios modelos de contenido?",
+              "answer": "Sí, con todos, en cuanto los creas. El asistente lee primero tu esquema, así que no hay nada que configurar por modelo."
+            }
+          ]
+        },
+        {
+          "__typename": "SiteCallToAction",
+          "title": "Deja que tu IA se encargue del trabajo rutinario",
+          "body": "Instala Tess, activa el servidor MCP y pide a tu asistente tu primer borrador.",
+          "primary": {
+            "label": "Empieza en 5 minutos",
+            "url": "/docs/getting-started/quick-start"
+          },
+          "secondary": {
+            "label": "Leer la guía de MCP",
+            "url": "/docs/developers/mcp"
+          }
+        }
+      ]
+    }
+  ],
+  "competitors": [
+    {
+      "name": "Strapi",
+      "slug": "strapi",
+      "website": "https://strapi.io",
+      "kind": "CMS headless de código abierto (Node.js)",
+      "summary": "El CMS headless de código abierto más popular, construido sobre Node.js, con una API REST y un plugin GraphQL.",
+      "rows": [
+        {
+          "criterion": "Entorno de ejecución",
+          "tess": "Un único binario de Rust",
+          "other": "Aplicación Node.js (TypeScript)"
+        },
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Se crean en tiempo de ejecución en producción (panel o API); el esquema GraphQL se regenera en directo",
+          "other": "Content-Type Builder en modo desarrollo; los modelos se guardan como archivos de código y se despliegan con la aplicación"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "REST por defecto, GraphQL mediante un plugin oficial"
+        },
+        {
+          "criterion": "Bases de datos",
+          "tess": "PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB, RocksDB",
+          "other": "PostgreSQL, MySQL/MariaDB, SQLite"
+        },
+        {
+          "criterion": "Flujo de revisión",
+          "tess": "Por tipo de contenido, en todas las ediciones",
+          "other": "Borrador y publicación incluidos; flujos de revisión en los planes de pago"
+        },
+        {
+          "criterion": "Plugins",
+          "tess": "Módulos WebAssembly aislados, instalados en tiempo de ejecución",
+          "other": "Paquetes Node.js que se ejecutan en el proceso de la aplicación, gran marketplace"
+        },
+        {
+          "criterion": "Localización",
+          "tess": "Todavía sin localización de contenido por campo",
+          "other": "Internacionalización del contenido integrada"
+        },
+        {
+          "criterion": "Alojamiento",
+          "tess": "Autoalojado: Docker, VM, Kubernetes o AWS Lambda",
+          "other": "Autoalojado o Strapi Cloud"
+        },
+        {
+          "criterion": "Licencia",
+          "tess": "Community (uso personal) / Enterprise (uso comercial)",
+          "other": "MIT para la Community Edition; planes de pago para las funciones empresariales"
+        }
+      ],
+      "chooseThem": "- Quieres un gran marketplace de plugins y una gran comunidad.\n- Necesitas contenido localizado hoy mismo.\n- Tu equipo prefiere personalizar el propio CMS en JavaScript/TypeScript.",
+      "chooseTess": "- Los editores o administradores deben cambiar los modelos **en producción**, sin volver a desplegar.\n- Quieres una API GraphQL-first sobre MongoDB, DynamoDB o una base de datos integrada.\n- Quieres un flujo de revisión sin plan de pago, o ejecutarlo en AWS Lambda.",
+      "migration": "Los tipos de Strapi se corresponden de cerca con los de Tess: `string`/`text` → `TEXT`, `richtext` → `MARKDOWN`, `blocks` → `JSON`, `enumeration` → `ENUM`, `relation` → `RELATION`, `media` → `RELATION` a `Asset`, `component` → `COMPONENT`, `dynamiczone` → `DYNAMIC_ZONE`. Escribe tus modelos en el formato YAML de `tess-transfer` e impórtalos con un solo comando; después copia las entradas mediante la API GraphQL.",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/strapi",
+      "asOf": "2026-10-20",
+      "order": 1
+    },
+    {
+      "name": "Hygraph",
+      "slug": "hygraph",
+      "website": "https://hygraph.com",
+      "kind": "CMS headless nativo de GraphQL (SaaS)",
+      "summary": "Un CMS alojado y nativo de GraphQL (antes GraphCMS), conocido por la federación de contenido entre API remotas.",
+      "rows": [
+        {
+          "criterion": "Modalidad",
+          "tess": "Software que ejecutas tú mismo",
+          "other": "Solo SaaS gestionado"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "GraphQL generado a partir de los modelos, con federación de contenido de fuentes remotas"
+        },
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Panel de administración o API, aplicados al instante",
+          "other": "Editor de esquemas en la aplicación web, con entornos"
+        },
+        {
+          "criterion": "Ubicación de los datos",
+          "tess": "Tus servidores y tu base de datos",
+          "other": "La nube de Hygraph, en las regiones que ofrece"
+        },
+        {
+          "criterion": "Flujo de revisión",
+          "tess": "Por tipo de contenido, en todas las ediciones",
+          "other": "Etapas y flujos de contenido, según el plan"
+        },
+        {
+          "criterion": "Localización",
+          "tess": "Todavía sin localización de contenido por campo",
+          "other": "Localización integrada"
+        },
+        {
+          "criterion": "Extensibilidad",
+          "tess": "Plugins WebAssembly aislados",
+          "other": "Extensiones de interfaz, webhooks y fuentes remotas"
+        },
+        {
+          "criterion": "Precios",
+          "tess": "Community gratuita para uso personal; licencia Enterprise para uso comercial",
+          "other": "Plan gratuito y después planes de pago según uso y funciones"
+        }
+      ],
+      "chooseThem": "- No quieres gestionar ninguna infraestructura.\n- Necesitas federación de contenido o localización integrada.",
+      "chooseTess": "- Tu contenido debe quedarse en tu propia infraestructura o base de datos.\n- Quieres la misma experiencia GraphQL-first sin precios por uso.",
+      "migration": "El esquema de Hygraph se traslada directamente: los modelos pasan a ser tipos de contenido, los componentes siguen siendo componentes y los campos union/modulares se convierten en campos `DYNAMIC_ZONE`. Descríbelos en el formato YAML de `tess-transfer`, impórtalos y copia las entradas con un script de GraphQL a GraphQL.",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/hygraph",
+      "asOf": "2026-10-20",
+      "order": 2
+    },
+    {
+      "name": "WordPress",
+      "slug": "wordpress",
+      "website": "https://wordpress.org",
+      "kind": "CMS tradicional (PHP), utilizable en modo headless",
+      "summary": "El CMS más usado del mundo, una aplicación PHP con temas, plugins y una API REST, que a menudo se usa en modo headless mediante WPGraphQL.",
+      "rows": [
+        {
+          "criterion": "Arquitectura",
+          "tess": "Headless: solo el contenido, cualquier front-end",
+          "other": "Constructor de sitios monolítico con temas; headless mediante sus API"
+        },
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Modelos tipados con validación, definidos en el panel o la API",
+          "other": "Entradas y páginas; tipos de contenido y campos personalizados mediante código o plugins como ACF"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "API REST integrada; GraphQL mediante el plugin WPGraphQL"
+        },
+        {
+          "criterion": "Tecnología",
+          "tess": "Binario de Rust, seis backends de base de datos",
+          "other": "PHP con MySQL o MariaDB"
+        },
+        {
+          "criterion": "Flujo editorial",
+          "tess": "Borrador, revisión y publicación por tipo de contenido",
+          "other": "Borrador, pendiente de revisión y publicación; más mediante plugins"
+        },
+        {
+          "criterion": "Extensibilidad",
+          "tess": "Plugins WebAssembly aislados",
+          "other": "Decenas de miles de plugins y temas PHP"
+        },
+        {
+          "criterion": "Licencia",
+          "tess": "Community (uso personal) / Enterprise (uso comercial)",
+          "other": "GPLv2 o posterior"
+        }
+      ],
+      "chooseThem": "- Quieres un sitio web con temas, creado por personas que no son desarrolladoras.\n- Dependes de un plugin concreto de WordPress o de su enorme ecosistema.",
+      "chooseTess": "- Tu contenido alimenta varios front-ends (sitios, apps móviles, quioscos).\n- Quieres contenido estructurado y validado y una API tipada en lugar de entradas y campos meta.",
+      "migration": "Modela tus tipos de contenido y campos personalizados como tipos de contenido de Tess (los grupos de campos de ACF encajan bien como componentes), impórtalos con `tess-transfer` y luego pasa las entradas de la API REST de WordPress a la API GraphQL de Tess con un script corto.",
+      "importExportUrl": "/docs/devops/import-export",
+      "migrationGuideUrl": "/docs/migration/wordpress",
+      "asOf": "2026-10-20",
+      "order": 3
+    },
+    {
+      "name": "Contentful",
+      "slug": "contentful",
+      "website": "https://www.contentful.com",
+      "kind": "Plataforma de contenido componible (SaaS)",
+      "summary": "Un CMS headless empresarial ofrecido como SaaS, con API de entrega REST y GraphQL y un gran ecosistema de aplicaciones.",
+      "rows": [
+        {
+          "criterion": "Modalidad",
+          "tess": "Software que ejecutas tú mismo",
+          "other": "Solo SaaS gestionado"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "API REST de entrega y de gestión, más una Content API GraphQL"
+        },
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Panel de administración o API, aplicados al instante",
+          "other": "Aplicación web o API de gestión, con entornos"
+        },
+        {
+          "criterion": "Ubicación de los datos",
+          "tess": "Tus servidores y tu base de datos",
+          "other": "La nube de Contentful"
+        },
+        {
+          "criterion": "Localización",
+          "tess": "Todavía sin localización de contenido por campo",
+          "other": "Locales integrados"
+        },
+        {
+          "criterion": "Extensibilidad",
+          "tess": "Plugins WebAssembly aislados",
+          "other": "App Framework y marketplace"
+        },
+        {
+          "criterion": "Precios",
+          "tess": "Community gratuita para uso personal; licencia Enterprise para uso comercial",
+          "other": "Plan gratuito y después planes de pago con límites de uso"
+        }
+      ],
+      "chooseThem": "- Necesitas un SaaS empresarial con SLA, muchos idiomas y un gran marketplace de aplicaciones.",
+      "chooseTess": "- Quieres ser dueño de la infraestructura y de los datos.\n- Prefieres una licencia predecible a límites de uso.",
+      "migration": "Los tipos de contenido de Contentful y sus campos se corresponden con tipos de contenido de Tess; las referencias pasan a ser campos `RELATION` y los assets, relaciones con `Asset`. Importa los modelos con `tess-transfer` y copia las entradas con la exportación de Contentful y la API GraphQL de Tess.",
+      "importExportUrl": "/docs/devops/import-export",
+      "asOf": "2026-10-20",
+      "order": 4
+    },
+    {
+      "name": "Directus",
+      "slug": "directus",
+      "website": "https://directus.io",
+      "kind": "Plataforma de datos sobre bases SQL (Node.js)",
+      "summary": "Una plataforma Node.js que convierte una base de datos SQL existente en API REST y GraphQL, con una aplicación de administración.",
+      "rows": [
+        {
+          "criterion": "Enfoque",
+          "tess": "Tess gestiona su propio almacenamiento y esquema",
+          "other": "Refleja las tablas de una base de datos SQL existente"
+        },
+        {
+          "criterion": "Bases de datos",
+          "tess": "PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB, RocksDB",
+          "other": "Bases de datos SQL: PostgreSQL, MySQL, MariaDB, SQLite, MS SQL, Oracle, CockroachDB"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "REST y GraphQL"
+        },
+        {
+          "criterion": "Flujo de revisión",
+          "tess": "Integrado, por tipo de contenido",
+          "other": "Se construye con permisos y Flows"
+        },
+        {
+          "criterion": "Automatización",
+          "tess": "Plugins en cada escritura",
+          "other": "Flows (automatización basada en eventos) integrados"
+        },
+        {
+          "criterion": "Licencia",
+          "tess": "Community (uso personal) / Enterprise (uso comercial)",
+          "other": "Business Source License: gratuita por debajo de un umbral de ingresos, licencia comercial por encima"
+        }
+      ],
+      "chooseThem": "- Debes exponer una base de datos SQL existente tal cual.\n- Quieres flujos de automatización integrados.",
+      "chooseTess": "- Partes de modelos de contenido, no de tablas existentes.\n- Necesitas NoSQL (MongoDB, DynamoDB), una base de datos integrada o AWS Lambda.",
+      "migration": "Cada colección de Directus pasa a ser un tipo de contenido de Tess, y sus campos relacionales, campos `RELATION`. Escríbelos en el formato YAML de `tess-transfer`, impórtalos y copia los elementos mediante ambas API GraphQL.",
+      "importExportUrl": "/docs/devops/import-export",
+      "asOf": "2026-10-20",
+      "order": 5
+    },
+    {
+      "name": "Payload",
+      "slug": "payload",
+      "website": "https://payloadcms.com",
+      "kind": "CMS headless «code-first» (TypeScript, Next.js)",
+      "summary": "Un CMS de código abierto en TypeScript que se configura en código y se instala dentro de una aplicación Next.js.",
+      "rows": [
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Se definen en tiempo de ejecución en el panel o la API",
+          "other": "Se definen en archivos de configuración TypeScript y se despliegan con la aplicación"
+        },
+        {
+          "criterion": "Entorno de ejecución",
+          "tess": "Binario de Rust independiente, cualquier tecnología de front-end",
+          "other": "Se ejecuta dentro de una aplicación Next.js (Node.js)"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "REST, GraphQL y una API local de Node.js"
+        },
+        {
+          "criterion": "Bases de datos",
+          "tess": "PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB, RocksDB",
+          "other": "MongoDB, PostgreSQL, SQLite"
+        },
+        {
+          "criterion": "Extensibilidad",
+          "tess": "Plugins WebAssembly aislados",
+          "other": "Hooks y plugins de TypeScript en la aplicación"
+        },
+        {
+          "criterion": "Licencia",
+          "tess": "Community (uso personal) / Enterprise (uso comercial)",
+          "other": "MIT"
+        }
+      ],
+      "chooseThem": "- Tu proyecto es una aplicación Next.js y quieres el esquema en tu repositorio, en TypeScript.",
+      "chooseTess": "- Los administradores deben hacer evolucionar los modelos sin desarrolladores ni despliegues.\n- No todos tus front-ends son JavaScript, o quieres el CMS separado de la aplicación.",
+      "migration": "Las colecciones y los blocks de Payload se corresponden con tipos de contenido y componentes de Tess (los campos blocks pasan a ser `DYNAMIC_ZONE`). Traduce la configuración al formato YAML de `tess-transfer`, impórtala y copia los documentos mediante las API GraphQL.",
+      "importExportUrl": "/docs/devops/import-export",
+      "asOf": "2026-10-20",
+      "order": 6
+    },
+    {
+      "name": "Sanity",
+      "slug": "sanity",
+      "website": "https://www.sanity.io",
+      "kind": "Plataforma de contenido alojada con un estudio de código abierto",
+      "summary": "Un Content Lake alojado con un estudio de edición en React, de código abierto y personalizable, y su propio lenguaje de consulta, GROQ.",
+      "rows": [
+        {
+          "criterion": "Modalidad",
+          "tess": "Software que ejecutas tú mismo",
+          "other": "Content Lake alojado; el estudio es de código abierto y se puede desplegar por cuenta propia"
+        },
+        {
+          "criterion": "Modelos de contenido",
+          "tess": "Panel de administración o API, aplicados al instante",
+          "other": "Esquemas en código JavaScript/TypeScript"
+        },
+        {
+          "criterion": "API",
+          "tess": "GraphQL generado a partir de los modelos",
+          "other": "GROQ, más una API GraphQL desplegable"
+        },
+        {
+          "criterion": "Edición",
+          "tess": "Panel de administración con borradores y revisiones",
+          "other": "Edición colaborativa en tiempo real en un estudio muy personalizable"
+        },
+        {
+          "criterion": "Ubicación de los datos",
+          "tess": "Tus servidores y tu base de datos",
+          "other": "La nube de Sanity"
+        },
+        {
+          "criterion": "Precios",
+          "tess": "Community gratuita para uso personal; licencia Enterprise para uso comercial",
+          "other": "Plan gratuito y después planes de pago según uso y número de usuarios"
+        }
+      ],
+      "chooseThem": "- Necesitas colaboración en tiempo real y un estudio de edición muy personalizado.",
+      "chooseTess": "- Quieres tu contenido en tu propia base de datos, con una API GraphQL estándar y sin un lenguaje de consulta que aprender.",
+      "migration": "Los tipos de documento y los objetos de Sanity se corresponden con tipos de contenido y componentes de Tess; los arrays de tipos mixtos pasan a ser campos `DYNAMIC_ZONE`. Importa los modelos con `tess-transfer` y copia los documentos de una exportación de Sanity mediante la API GraphQL de Tess.",
+      "importExportUrl": "/docs/devops/import-export",
+      "asOf": "2026-10-20",
+      "order": 7
+    }
+  ]
+}

@@ -36,6 +36,7 @@ Everything else is pluggable and chosen by configuration:
 |---|---|---|
 | **Docker / Compose** | most self-hosted installs | `tess` + PostgreSQL (or SQLite) + Garage + Typesense. See [Docker](docker.md). |
 | **Single VM** | small installs | the `tess` binary under systemd, SQLite or RocksDB, filesystem media |
+| **Raspberry Pi** | home servers, tiny devices | the arm64 or armv7 binary under systemd, RocksDB or SQLite. See [Raspberry Pi & small devices](raspberry-pi.md). |
 | **Kubernetes** | several replicas | the Docker image as a Deployment, with PostgreSQL/MySQL/MongoDB and S3 |
 | **AWS Lambda** | serverless, pay per use | DynamoDB + S3 (+ Typesense Cloud). See [AWS Lambda](aws-lambda.md). |
 | **Phusion Passenger** | hosts that only run Ruby/Node apps | `tess` started and proxied by a Rack `config.ru`, RocksDB/SQLite or a managed database. See [Phusion Passenger](passenger.md). |
@@ -58,6 +59,6 @@ Lambda execution environments.
 ## Next steps
 
 1. [Configuration reference](configuration.md)
-2. [Docker](docker.md), [AWS Lambda](aws-lambda.md) or [Phusion Passenger](passenger.md)
+2. [Docker](docker.md), [AWS Lambda](aws-lambda.md), [Phusion Passenger](passenger.md) or [Raspberry Pi](raspberry-pi.md)
 3. [Security checklist](security.md)
 4. [Operations](operations.md): health, logs, backups, upgrades

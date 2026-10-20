@@ -25,9 +25,9 @@ const config: Config = {
     v4: true,
   },
 
-  // Served at https://tessheadless.com/docs/, under the product website.
+  // Served at https://www.tessheadless.com/docs/, under the product website.
   // DOCS_URL / DOCS_BASE_URL override it (e.g. a fork's GitHub Pages origin).
-  url: process.env.DOCS_URL || 'https://tessheadless.com',
+  url: process.env.DOCS_URL || 'https://www.tessheadless.com',
   baseUrl,
   customFields: {docsRoute},
 

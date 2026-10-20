@@ -3,26 +3,43 @@
 // SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
-// Loads content/seed.json into Tess and publishes it.
+// Loads content/seed.json (English) and content/seed.{fr,zh,es}.json into
+// Tess and publishes them, each entry with its `locale`.
 //
-//   TESS_API_URL=https://cms.example.com TESS_TOKEN=… npm run seed [-- --overwrite]
+//   TESS_API_URL=https://cms.example.com TESS_TOKEN=… npm run seed [-- --overwrite] [-- --locale fr]
 //
 // Import the models first: tess-transfer import content/models.yaml
-// Entries are matched by slug (pages, competitors), title (features), or the
-// single SiteSettings entry. Existing entries are left alone unless you pass
+// Entries are matched by locale and slug (pages, competitors), title
+// (features), or the SiteSettings entry of the language; English also matches
+// entries without a locale. Existing entries are left alone unless you pass
 // --overwrite, so edits made in the admin are never lost by accident.
 
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 const url = process.env.TESS_API_URL?.replace(/\/$/, "");
 const token = process.env.TESS_TOKEN?.trim();
 const overwrite = process.argv.includes("--overwrite");
+const only = process.argv.includes("--locale") ? process.argv[process.argv.indexOf("--locale") + 1] : undefined;
+const LOCALES = ["en", "fr", "zh", "es"];
+if (only && !LOCALES.includes(only)) {
+  console.error(`--locale must be one of ${LOCALES.join(", ")}`);
+  process.exit(1);
+}
 if (!url || !token) {
   console.error("Set TESS_API_URL and TESS_TOKEN (a Contributor or Admin token).");
   process.exit(1);
 }
 
-const seed = JSON.parse(await readFile(new URL("../content/seed.json", import.meta.url), "utf8"));
+/** The seed of a language, or null when its file doesn't exist. */
+async function readSeed(locale) {
+  const file = new URL(`../content/seed${locale === "en" ? "" : `.${locale}`}.json`, import.meta.url);
+  try {
+    await access(file);
+  } catch {
+    return null;
+  }
+  return JSON.parse(await readFile(file, "utf8"));
+}
 
 async function gql(query, variables = {}) {
   const res = await fetch(`${url}/graphql`, {
@@ -74,13 +91,16 @@ async function upsert(type, label, data, find) {
   await gql(`mutation($id: ID!) { publish${type}(id: $id) { id } }`, { id });
 }
 
-function finder(list, field, value) {
+/** Does an entry belong to `locale`? Entries without a locale are English. */
+const sameLocale = (entry, locale) => (entry.locale ?? "EN") === locale;
+
+function finder(list, field, value, locale) {
   return async () => {
     const data = await gql(
-      `query($v: String!) { ${list}(where: { ${field}: $v }, stage: DRAFT, first: 1) { items { id } } }`,
+      `query($v: String!) { ${list}(where: { ${field}: $v }, stage: DRAFT, first: 50) { items { id locale } } }`,
       { v: value },
     );
-    return data[list].items[0]?.id;
+    return data[list].items.find((e) => sameLocale(e, locale))?.id;
   };
 }
 
@@ -92,17 +112,26 @@ try {
 }
 
 console.log(`Seeding ${url}`);
-await upsert("SiteSettings", "(site settings)", toInput(seed.settings), async () => {
-  const d = await gql("{ siteSettingsEntries(first: 1, stage: DRAFT) { items { id } } }");
-  return d.siteSettingsEntries.items[0]?.id;
-});
-for (const f of seed.features) {
-  await upsert("SiteFeature", f.title, toInput(f), finder("siteFeatures", "title", f.title));
-}
-for (const p of seed.pages) {
-  await upsert("SitePage", p.slug, toInput(p), finder("sitePages", "slug", p.slug));
-}
-for (const c of seed.competitors) {
-  await upsert("SiteCompetitor", c.slug, toInput(c), finder("siteCompetitors", "slug", c.slug));
+for (const lang of only ? [only] : LOCALES) {
+  const seed = await readSeed(lang);
+  if (!seed) continue;
+  const locale = lang.toUpperCase();
+  const data = (entry) => toInput({ ...entry, locale });
+  console.log(`[${lang}]`);
+  if (seed.settings) {
+    await upsert("SiteSettings", `(site settings, ${lang})`, data(seed.settings), async () => {
+      const d = await gql("{ siteSettingsEntries(first: 50, stage: DRAFT) { items { id locale } } }");
+      return d.siteSettingsEntries.items.find((e) => sameLocale(e, locale))?.id;
+    });
+  }
+  for (const f of seed.features ?? []) {
+    await upsert("SiteFeature", f.title, data(f), finder("siteFeatures", "title", f.title, locale));
+  }
+  for (const p of seed.pages ?? []) {
+    await upsert("SitePage", p.slug, data(p), finder("sitePages", "slug", p.slug, locale));
+  }
+  for (const c of seed.competitors ?? []) {
+    await upsert("SiteCompetitor", c.slug, data(c), finder("siteCompetitors", "slug", c.slug, locale));
+  }
 }
 console.log("Done. Rebuild the website to see the content.");

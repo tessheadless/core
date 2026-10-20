@@ -8,3 +8,4 @@ rustc-ice-*.txt
 **/node_modules/
 /data/
 .env*
+.claude

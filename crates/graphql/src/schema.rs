@@ -299,6 +299,15 @@ pub(crate) fn build(
         }
         builder = builder.data(i18n.clone());
     }
+    if let Some(forms) = &services.forms {
+        let (q, m, types) = crate::forms::definitions();
+        query = q.into_iter().fold(query, |o, f| o.field(f));
+        mutation = m.into_iter().fold(mutation, |o, f| o.field(f));
+        for ty in types {
+            builder = ty.register(builder);
+        }
+        builder = builder.data(forms.clone());
+    }
     if let Some(webhooks) = &services.webhooks {
         let (q, m, types) = crate::webhooks::definitions();
         query = q.into_iter().fold(query, |o, f| o.field(f));

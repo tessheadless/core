@@ -5,6 +5,7 @@
     "description": "Tess is a self-hostable, GraphQL-first headless CMS written in Rust. Define content models at runtime, publish with review workflows, and run it on Docker, a VM or AWS Lambda.",
     "navigation": [
       { "label": "Features", "url": "/features" },
+      { "label": "AI & MCP", "url": "/ai" },
       { "label": "Compare", "url": "/compare" },
       { "label": "Docs", "url": "/docs/" }
     ],
@@ -28,84 +29,84 @@
       "summary": "Create content types in the admin or through the API, in production. The GraphQL schema is regenerated on the fly: no rebuild, no redeploy.",
       "icon": "BOLT",
       "highlighted": true,
-      "order": 1
+      "order": 2
     },
     {
       "title": "GraphQL-first",
       "summary": "Typed queries, filters, sorting, pagination, relations and mutations generated for every model, with a GraphiQL IDE built in.",
       "icon": "GRAPH",
       "highlighted": true,
-      "order": 2
+      "order": 3
     },
     {
       "title": "Your database",
       "summary": "PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB or embedded RocksDB. Every backend passes the same conformance suite.",
       "icon": "DATABASE",
       "highlighted": true,
-      "order": 3
+      "order": 4
     },
     {
       "title": "Review workflows",
       "summary": "Draft and publish for every entry, plus an optional submit → approve workflow per content type, in every edition.",
       "icon": "WORKFLOW",
       "highlighted": true,
-      "order": 4
+      "order": 5
     },
     {
       "title": "Roles and scoped tokens",
       "summary": "Owner, Admin, Contributor, Reviewer and Member roles, limited to some content types if needed, and scoped API tokens for machines.",
       "icon": "USERS",
-      "highlighted": true,
-      "order": 5
+      "highlighted": false,
+      "order": 6
     },
     {
       "title": "Sandboxed plugins",
       "summary": "WebAssembly plugins installed by admins at runtime, written in Rust, Go, JavaScript and more, with timeouts and memory limits.",
       "icon": "PLUG",
       "highlighted": true,
-      "order": 6
+      "order": 7
     },
     {
       "title": "Serverless or container",
       "summary": "One binary runs as an HTTP server (Docker, VM, Kubernetes) or as an AWS Lambda function.",
       "icon": "CLOUD",
       "highlighted": false,
-      "order": 7
+      "order": 8
     },
     {
       "title": "Media library",
       "summary": "Uploads to S3-compatible stores (Garage, MinIO, AWS S3, Cloudflare R2) or the local filesystem, with direct presigned uploads.",
       "icon": "IMAGE",
       "highlighted": false,
-      "order": 8
+      "order": 9
     },
     {
       "title": "Full-text search",
       "summary": "Typesense indexing kept in sync with your content, behind a pluggable search engine interface.",
       "icon": "SEARCH",
       "highlighted": false,
-      "order": 9
+      "order": 10
     },
     {
       "title": "Private by design",
       "summary": "Opaque, expiring, encrypted ids in the API: database ids never leave the server.",
       "icon": "LOCK",
       "highlighted": false,
-      "order": 10
+      "order": 11
     },
     {
-      "title": "AI agents welcome",
-      "summary": "A built-in MCP endpoint lets AI agents read the schema and query or edit content, with the same permissions as the API.",
+      "title": "Run it with AI",
+      "summary": "A built-in MCP server lets Claude, Cursor and any MCP client read your models and create, edit and publish content in plain language, with the same permissions as the API.",
       "icon": "ROBOT",
-      "highlighted": false,
-      "order": 11
+      "highlighted": true,
+      "order": 1
     },
     {
       "title": "Portable models",
       "summary": "tess-transfer exports content models and users to YAML or JSON, to version them or copy them between instances.",
       "icon": "CODE",
       "highlighted": false,
-      "order": 12
+      "order": 13
     }
   ],
   "pages": [
@@ -116,15 +117,19 @@
       "sections": [
         {
           "__typename": "SiteHero",
-          "eyebrow": "Headless CMS · Rust · GraphQL",
+          "eyebrow": "Headless CMS · Rust · GraphQL · MCP",
           "title": "Every entry is a tile. Your apps are the mosaic.",
-          "subtitle": "Tess is a self-hostable headless CMS in a single Rust binary. Define your content models at runtime and get a typed GraphQL API instantly, on the database you already run.",
-          "primary": {
-            "label": "Start in 5 minutes",
-            "url": "/docs/getting-started/quick-start"
-          },
+          "subtitle": "Tess is a self-hostable headless CMS in a single Rust binary. Define your content models at runtime and get a typed GraphQL API instantly, on the database you already run. **And manage it all by talking to your AI assistant**, through the built-in MCP server.",
+          "primary": { "label": "Start in 5 minutes", "url": "/docs/getting-started/quick-start" },
           "secondary": { "label": "Compare with other CMSs", "url": "/compare" },
           "code": "query {\n  posts(where: { title_contains: \"tess\" }, first: 3) {\n    total\n    items {\n      title\n      publishedAt\n      authors { name }\n    }\n  }\n}"
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Manage your website by talking to your AI",
+          "body": "Ask Claude, Cursor or any MCP client to write, edit and publish your content: Tess speaks the **Model Context Protocol** out of the box. Your assistant discovers your content models by itself, then reads and writes through the same API and permissions as your apps.\n\n- **No plugin, no glue code:** turn it on with `TESS_MCP=true` and add one entry to your AI client.\n- **Safe by default:** give the assistant a Contributor token and it can only write drafts, which your team reviews and publishes.\n- **Works with every model** you create, the moment you create it.\n\n[See how it works →](/ai)",
+          "language": "chat",
+          "code": "You: Find every published post without a meta\n     description and write one for each, as drafts.\n\nAI:  Found 12 posts. I've drafted a description\n     for each one and submitted them for review.\n\nYou: Add a \"Summer sale\" banner to the home page\n     for next week, and show me the draft."
         },
         {
           "__typename": "SiteFeatureGrid",
@@ -145,6 +150,13 @@
           "subtitle": "Honest, dated comparisons with the CMSs you probably know, including when they are the better choice."
         },
         {
+          "__typename": "SiteCodeSample",
+          "title": "Fun fact: Tess runs on a Raspberry Pi 3",
+          "body": "Tess's creator runs their own Tess on a **Raspberry Pi 3**, without n8n: one Rust binary, an embedded database, and nothing else to install. It uses about 30 MB of memory while idle, so even a 1 GB board has plenty of room left.\n\n- **No database server needed:** RocksDB or SQLite are built in.\n- **Native ARM builds:** `arm64` and `armv7` binaries and `arm64` Docker images with every release.\n- **Pi 4 and 5 too**, with room for n8n, PostgreSQL and search on the bigger boards.\n\n[Run Tess on a Raspberry Pi →](/docs/devops/raspberry-pi)",
+          "language": "shell",
+          "code": "# On the Pi (64-bit Raspberry Pi OS)\nVERSION=0.1.1\ncurl -LO https://github.com/tessheadless/core/releases/download/v$VERSION/tess-$VERSION-linux-arm64.tar.xz\ntar -xJf tess-$VERSION-linux-arm64.tar.xz\ncd tess-$VERSION-linux-arm64\n\ncp .env.example .env   # add your secrets\nset -a && . ./.env && set +a && ./tess\n# → http://raspberrypi.local:8080/admin/"
+        },
+        {
           "__typename": "SiteFaq",
           "title": "Questions",
           "items": [
@@ -153,8 +165,16 @@
               "answer": "The **Community** edition is free for personal use. Commercial use needs the **Enterprise** edition, which also adds advanced features, official plugins and hosting. See [Community & Enterprise](/docs/editions)."
             },
             {
+              "question": "Can AI tools manage my content?",
+              "answer": "Yes. Tess has a built-in [MCP server](/ai): connect Claude, Cursor or any MCP client with an API token, and ask it in plain language to create, edit, translate or publish content. It can do exactly what the token's role allows, nothing more."
+            },
+            {
               "question": "Which database do I need?",
               "answer": "None to start: Tess embeds RocksDB. In production use PostgreSQL, MySQL, MongoDB or DynamoDB, or keep SQLite or RocksDB for small sites."
+            },
+            {
+              "question": "Can Tess run on a Raspberry Pi?",
+              "answer": "Yes. Tess's creator runs it on a Raspberry Pi 3. Every release has native `arm64` and `armv7` Linux binaries and `arm64` Docker images, for the Pi 3, 4 and 5. See [Raspberry Pi & small devices](/docs/devops/raspberry-pi)."
             },
             {
               "question": "Is there a REST API?",
@@ -186,11 +206,7 @@
           "title": "One binary, the whole content platform",
           "subtitle": "Tess bundles the API, the admin UI and the business rules. Pick your database, your media store and your hosting."
         },
-        {
-          "__typename": "SiteFeatureGrid",
-          "title": "All features",
-          "highlightedOnly": false
-        },
+        { "__typename": "SiteFeatureGrid", "title": "All features", "highlightedOnly": false },
         {
           "__typename": "SiteRichText",
           "title": "Field types",
@@ -201,6 +217,73 @@
           "title": "See it on your machine",
           "body": "The quick start takes a few minutes, with Docker or without.",
           "primary": { "label": "Quick start", "url": "/docs/getting-started/quick-start" }
+        }
+      ]
+    },
+    {
+      "slug": "ai",
+      "title": "Manage your website with AI",
+      "description": "Tess has a built-in MCP server: let Claude, Cursor or any MCP client create, edit and publish your content in plain language, safely.",
+      "sections": [
+        {
+          "__typename": "SiteHero",
+          "eyebrow": "Built-in MCP server",
+          "title": "Your website, managed by talking to your AI.",
+          "subtitle": "Tess speaks the **Model Context Protocol**, the open standard AI assistants use to work with tools. Connect Claude, Codex, OpenCode, Pi or any MCP client in two minutes, then ask in plain language: *“draft a post about our new release”*, *“fix the typos on the pricing page”*, *“which products have no image?”*. No plugin to install, no code to write.",
+          "primary": { "label": "Connect your AI", "url": "/docs/developers/mcp" },
+          "secondary": { "label": "Start in 5 minutes", "url": "/docs/getting-started/quick-start" },
+          "code": "You: Find every published post without a meta\n     description and write one for each, as drafts.\n\nAI:  Found 12 posts. I've drafted a description\n     for each one and submitted them for review.\n\nYou: Add a \"Summer sale\" banner to the home page\n     for next week, and show me the draft.",
+          "codeLanguage": "chat"
+        },
+        {
+          "__typename": "SiteRichText",
+          "title": "What you can ask",
+          "body": "Your assistant reads your content models first, so it knows your fields, relations and components without any setup. Then it works like an editor who never gets tired:\n\n- **Write:** *“Draft three blog posts from these release notes, with a summary and tags.”*\n- **Edit at scale:** *“Every product description over 300 words: shorten it and keep the tone.”*\n- **Check:** *“Which published pages have no meta description or no cover image?”*\n- **Model:** *“Add an FAQ content type with a question, an answer and a category.”* (with an Admin token)\n- **Publish:** *“Publish the drafts I approved this morning.”*\n- **Answer questions:** *“How many articles did we publish per month this year?”*\n\nIt works with every content model you create, the moment you create it: the MCP server exposes your whole GraphQL API through two generic tools, `get_schema` and `graphql_query`."
+        },
+        {
+          "__typename": "SiteCodeSample",
+          "title": "Set up in two minutes",
+          "body": "1. **Turn it on** in your server settings: `TESS_MCP=true`.\n2. **Create an API token** for your assistant in the admin (**API tokens**), with the role it needs: Contributor to write drafts, Member to read only.\n3. **Add Tess to your AI client**: the URL of your server, and the token in an `Authorization: Bearer` header, as shown here. Claude Code, OpenCode, Codex and Pi each take it in one line of their configuration.\n\nThat's it: your assistant now sees your content, with exactly the rights of its token. For clients that only run local programs, like Claude Desktop, the `tess mcp` command does the same through a small local proxy.\n\n[Read the MCP guide →](/docs/developers/mcp)",
+          "language": "json",
+          "code": "{\n  \"mcpServers\": {\n    \"tess\": {\n      \"type\": \"http\",\n      \"url\": \"https://cms.example.com/mcp\",\n      \"headers\": { \"Authorization\": \"Bearer tess_t1_…\" }\n    }\n  }\n}"
+        },
+        {
+          "__typename": "SiteRichText",
+          "title": "AI that works for you, not around you",
+          "body": "Giving an AI access to your website should not mean giving up control. With Tess it doesn't:\n\n- **The same rules as everyone.** The assistant uses an API token, and Tess applies that token's role and scope to every call. A Member token reads; a Contributor token writes drafts, only on the content types you allow.\n- **Humans keep the last word.** With review workflows, the AI's changes are drafts submitted for review: your team approves them before anything goes live.\n- **Everything is traced.** Each change records who made it, so you always know what the assistant did, and can revoke its token in one click.\n- **Your data stays yours.** Tess runs on your servers and talks only to the AI client you connect, with only the content its token can reach."
+        },
+        {
+          "__typename": "SiteFaq",
+          "title": "Questions about AI and MCP",
+          "items": [
+            {
+              "question": "Which AI tools work with Tess?",
+              "answer": "Any client that supports the Model Context Protocol: Claude Code, Claude Desktop, OpenCode, Codex, Pi, Cursor and more. Clients that support remote servers connect to `https://your-server/mcp` directly, with your API token in an `Authorization: Bearer` header; others, like Claude Desktop, run the local `tess mcp` proxy. The [MCP guide](/docs/developers/mcp) has the configuration of each one."
+            },
+            {
+              "question": "How does my AI assistant sign in to Tess?",
+              "answer": "With an API token you create in the admin. The client sends it in the `Authorization: Bearer` header of every request, so Tess knows which token, and which role, is calling. Keep it in an environment variable rather than in a config file, and revoke it in one click if needed. Without a token, an assistant can only read published content."
+            },
+            {
+              "question": "Is the MCP server part of the Community edition?",
+              "answer": "Yes. It's built into Tess, in every edition: no add-on, no extra service. It's off until you set `TESS_MCP=true`."
+            },
+            {
+              "question": "Can the AI delete or break my content?",
+              "answer": "Only if you give it a token that allows it. Use a Contributor token scoped to a few content types, and enable review workflows: the AI then writes drafts that your team reviews and publishes."
+            },
+            {
+              "question": "Does it work with my own content models?",
+              "answer": "Yes, with all of them, as soon as you create them. The assistant reads your schema first, so there is nothing to configure per model."
+            }
+          ]
+        },
+        {
+          "__typename": "SiteCallToAction",
+          "title": "Let your AI run the busywork",
+          "body": "Install Tess, turn on the MCP server, and ask your assistant for your first draft.",
+          "primary": { "label": "Start in 5 minutes", "url": "/docs/getting-started/quick-start" },
+          "secondary": { "label": "Read the MCP guide", "url": "/docs/developers/mcp" }
         }
       ]
     }
@@ -337,7 +420,11 @@
           "tess": "GraphQL generated from the models",
           "other": "REST API built in; GraphQL through the WPGraphQL plugin"
         },
-        { "criterion": "Stack", "tess": "Rust binary, six database backends", "other": "PHP with MySQL or MariaDB" },
+        {
+          "criterion": "Stack",
+          "tess": "Rust binary, six database backends",
+          "other": "PHP with MySQL or MariaDB"
+        },
         {
           "criterion": "Editorial workflow",
           "tess": "Draft, review, publish per content type",
@@ -380,8 +467,16 @@
           "tess": "Admin UI or API, applied immediately",
           "other": "Web app or management API, with environments"
         },
-        { "criterion": "Data location", "tess": "Your servers and your database", "other": "Contentful's cloud" },
-        { "criterion": "Localization", "tess": "No per-field content localization yet", "other": "Built-in locales" },
+        {
+          "criterion": "Data location",
+          "tess": "Your servers and your database",
+          "other": "Contentful's cloud"
+        },
+        {
+          "criterion": "Localization",
+          "tess": "No per-field content localization yet",
+          "other": "Built-in locales"
+        },
         {
           "criterion": "Extensibility",
           "tess": "Sandboxed WebAssembly plugins",
@@ -473,7 +568,11 @@
           "tess": "Sandboxed WebAssembly plugins",
           "other": "TypeScript hooks and plugins in the app"
         },
-        { "criterion": "License", "tess": "Community (personal use) / Enterprise (commercial use)", "other": "MIT" }
+        {
+          "criterion": "License",
+          "tess": "Community (personal use) / Enterprise (commercial use)",
+          "other": "MIT"
+        }
       ],
       "chooseThem": "- Your project is a Next.js app and you want the schema in your repository as TypeScript.",
       "chooseTess": "- Admins must evolve models without developers or redeploys.\n- Your front ends are not all JavaScript, or you want the CMS separate from the app.",

@@ -4,7 +4,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { linkRel } from "./SiteLink";
+import { A } from "./SiteLink";
 
 /** Markdown from Tess MARKDOWN fields (raw HTML is refused by Tess and not rendered here). */
 export function Markdown({ children, className = "" }: { children: string | null | undefined; className?: string }) {
@@ -14,11 +14,7 @@ export function Markdown({ children, className = "" }: { children: string | null
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href = "", children }) => (
-            <a href={href} rel={linkRel(href)}>
-              {children}
-            </a>
-          ),
+          a: ({ href = "", children }) => <A href={href}>{children}</A>,
         }}
       >
         {children}

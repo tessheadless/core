@@ -76,6 +76,8 @@ public one, set **n8n URL for Tess** (e.g. `http://n8n:5678`).
 |---|---|
 | Entry | Get, Get Many (filter, stage, limit), Create, Update, Delete, Publish, Unpublish |
 | Translation | Get Keys (search, missing in a language), Set Text (text and/or review state), Export, Publish to delivery targets |
+| Calendar | Create Event (with invitations), Update Event, Cancel Event, Get Events, Get Bookings ([calendars](calendars.md)) |
+| Form | Get Submissions ([forms](forms.md)) |
 | GraphQL | Any query or mutation, with variables |
 
 After a Tess Trigger, `{{ $json.data.entry.id }}` and `{{ $json.contentType }}`
@@ -87,6 +89,10 @@ point at the changed entry.
 - `i18n.key.create` → machine-translate the new key, save it as `TRANSLATED` for review.
 - `entry.submit` → notify reviewers on Slack or by email.
 - `contentType.update` → regenerate client types in a repository.
+- `form.submitted` (a reservation form) → create the event in a Google calendar
+  with **Tess → Calendar → Create Event**, which emails the invitation.
+- `calendar.booking.created` (cal.diy) → add the guest to a mailing list, or
+  post the booking on Slack.
 
 ## Notes
 

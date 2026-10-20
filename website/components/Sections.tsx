@@ -7,7 +7,8 @@ import { CodeBlock } from "./CodeBlock";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
 import { HeroBackdrop, Reveal, StaggerChild, StaggerGroup, StaggerItem, StaggerList } from "./Motion";
-import { ButtonLink } from "./SiteLink";
+import { useTranslation } from "react-i18next";
+import { A, ButtonLink } from "./SiteLink";
 
 export interface SectionContext {
   features: Feature[];
@@ -30,6 +31,7 @@ function Container({ children, className = "" }: { children: React.ReactNode; cl
 }
 
 function SectionBlock({ section: s, context, first }: { section: Section; context: SectionContext; first: boolean }) {
+  const { t } = useTranslation();
   switch (s.__typename) {
     case "SiteHero": {
       const Title = first ? "h1" : "h2";
@@ -59,7 +61,7 @@ function SectionBlock({ section: s, context, first }: { section: Section; contex
             {s.code && (
               <StaggerGroup onMount delay={0.3}>
                 <StaggerChild from="right">
-                  <CodeBlock code={s.code} language="graphql" />
+                  <CodeBlock code={s.code} language={s.codeLanguage ?? "graphql"} />
                 </StaggerChild>
               </StaggerGroup>
             )}
@@ -129,23 +131,23 @@ function SectionBlock({ section: s, context, first }: { section: Section; contex
             <StaggerList className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {context.competitors.map((c) => (
                 <StaggerItem key={c.slug} lift>
-                  <a
+                  <A
                     href={`/compare/${c.slug}`}
-                    aria-label={`Tess vs ${c.name}: ${c.kind}`}
+                    ariaLabel={t("compare.tessVsKind", { name: c.name, kind: c.kind })}
                     className="card bg-base-200 hover:bg-base-300 h-full transition-colors"
                   >
                     <div className="card-body">
-                      <h3 className="card-title">Tess vs {c.name}</h3>
+                      <h3 className="card-title">{t("compare.tessVs", { name: c.name })}</h3>
                       <p className="text-base-content/70 text-sm">{c.kind}</p>
                     </div>
-                  </a>
+                  </A>
                 </StaggerItem>
               ))}
             </StaggerList>
             <div className="mt-8 text-center">
-              <a href="/compare" className="btn btn-outline">
-                All comparisons
-              </a>
+              <A href="/compare" className="btn btn-outline">
+                {t("compare.allComparisons")}
+              </A>
             </div>
           </Container>
         </section>

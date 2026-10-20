@@ -6,7 +6,9 @@
 #   TESS_URL=… TESS_TOKEN=… tess-transfer import website/content/models.yaml
 # (add --update to apply changes to existing models), then seed the content
 # with `npm run seed`. Every model is prefixed with `Site` so the website can
-# share an instance with other projects.
+# share an instance with other projects. Each entry has a `locale` (EN, FR, ZH,
+# ES; empty means English): the website shows the English entry where a
+# translation is missing.
 version: 1
 components:
   - apiId: SiteLink
@@ -24,6 +26,7 @@ components:
       - { name: primary, type: COMPONENT, component: SiteLink }
       - { name: secondary, type: COMPONENT, component: SiteLink }
       - { name: code, type: TEXT, maxLength: null, description: Optional snippet shown next to the title }
+      - { name: codeLanguage, type: TEXT, maxLength: 20, description: "Label of the snippet (default: graphql)" }
 
   - apiId: SiteFeatureGrid
     description: "Page section: grid of the SiteFeature entries."
@@ -81,8 +84,9 @@ components:
 contentTypes:
   - apiId: SiteSettings
     pluralApiId: siteSettingsEntries
-    description: Website-wide settings. Keep exactly one published entry.
+    description: Website-wide settings. Keep one published entry per language.
     fields:
+      - { name: locale, type: ENUM, enumValues: [EN, FR, ZH, ES], description: "Empty: English" }
       - { name: siteName, type: TEXT, required: true, maxLength: 60 }
       - { name: tagline, type: TEXT, required: true, maxLength: 160 }
       - { name: description, type: TEXT, required: true, maxLength: 300, description: Default SEO description }
@@ -93,8 +97,9 @@ contentTypes:
       - { name: docsUrl, type: TEXT, required: true, maxLength: 300 }
 
   - apiId: SitePage
-    description: A page of the website; `home` is the home page.
+    description: "A page of the website; `home` is the home page. One entry per language, with the same slug."
     fields:
+      - { name: locale, type: ENUM, enumValues: [EN, FR, ZH, ES], description: "Empty: English" }
       - { name: slug, type: TEXT, required: true, maxLength: 80, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$" }
       - { name: title, type: TEXT, required: true, maxLength: 120 }
       - { name: description, type: TEXT, required: true, maxLength: 300, description: SEO description }
@@ -104,8 +109,9 @@ contentTypes:
           [SiteHero, SiteFeatureGrid, SiteRichText, SiteCodeSample, SiteComparisonTeaser, SiteFaq, SiteCallToAction]
 
   - apiId: SiteFeature
-    description: A feature shown in feature grids.
+    description: A feature shown in feature grids, in the language of its `locale`.
     fields:
+      - { name: locale, type: ENUM, enumValues: [EN, FR, ZH, ES], description: "Empty: English" }
       - { name: title, type: TEXT, required: true, maxLength: 80 }
       - { name: summary, type: TEXT, required: true, maxLength: 300 }
       - {
@@ -117,8 +123,9 @@ contentTypes:
       - { name: order, type: INT }
 
   - apiId: SiteCompetitor
-    description: Another CMS, compared with Tess on /compare.
+    description: Another CMS, compared with Tess on /compare. One entry per language, with the same slug.
     fields:
+      - { name: locale, type: ENUM, enumValues: [EN, FR, ZH, ES], description: "Empty: English" }
       - { name: name, type: TEXT, required: true, maxLength: 60 }
       - { name: slug, type: TEXT, required: true, maxLength: 60, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$" }
       - { name: website, type: TEXT, maxLength: 300 }

@@ -8,5 +8,5 @@ import { sitePageData } from "../../lib/pageData";
 export type Data = Awaited<ReturnType<typeof data>>;
 
 export async function data(pageContext: PageContextServer) {
-  return sitePageData(pageContext.routeParams.slug ?? "");
+  return sitePageData(pageContext.routeParams.slug ?? "", pageContext.locale);
 }
