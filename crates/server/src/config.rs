@@ -405,6 +405,25 @@ pub fn webhook_config() -> Result<Option<tess_webhooks::WebhookConfig>> {
     }))
 }
 
+/// `None` when `TESS_FORMS=false`.
+pub fn forms_config() -> Result<Option<tess_forms::FormsConfig>> {
+    if !bool_var("TESS_FORMS", true)? {
+        return Ok(None);
+    }
+    let rate = parse_var(
+        "TESS_FORMS_RATE_LIMIT",
+        tess_forms::FormsConfig::default().rate_per_minute,
+    )?;
+    if rate == 0 {
+        bail!(
+            "TESS_FORMS_RATE_LIMIT must be at least 1 (submissions per visitor and form, per minute)"
+        );
+    }
+    Ok(Some(tess_forms::FormsConfig {
+        rate_per_minute: rate,
+    }))
+}
+
 /// `None` when `TESS_I18N=false`.
 pub fn i18n_config() -> Result<Option<tess_i18n::I18nConfig>> {
     if !bool_var("TESS_I18N", true)? {

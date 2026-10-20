@@ -43,6 +43,9 @@ tess-media = { path = "../media", default-features = false }
 tess-plugins = { path = "../plugins" }
 tess-search = { path = "../search" }
 tess-cache = { path = "../cache" }
+tess-forms = { path = "../forms" }
+form_urlencoded = "1.2.2"
+uuid = { version = "1.28.0", features = ["v4"] }
 tess-webhooks = { path = "../webhooks" }
 tess-storage-dynamodb = { path = "../storage-dynamodb", optional = true }
 tess-storage-mongodb = { path = "../storage-mongodb", optional = true }
@@ -58,4 +61,4 @@ tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net", "s
 tower-http = { version = "0.7.1", features = ["cors", "trace", "fs"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
-tess-auth = { version = "0.1.1", path = "../auth" }
+tess-auth = { version = "0.2.0", path = "../auth" }

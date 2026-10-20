@@ -16,8 +16,8 @@ description = "Tess WebAssembly plugin runtime (Extism)."
 async-trait = "0.1.92"
 base64 = "0.23.1"
 bytes = "1.12.1"
-tess-core = { version = "0.1.1", path = "../core" }
-tess-media = { version = "0.1.1", path = "../media", default-features = false }
+tess-core = { version = "0.2.0", path = "../core" }
+tess-media = { version = "0.2.0", path = "../media", default-features = false }
 extism = "1.41.0"
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }

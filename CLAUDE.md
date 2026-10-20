@@ -49,6 +49,7 @@ otherwise, and update this file when a choice changes.
 | Storage backends | PostgreSQL, MySQL, SQLite, MongoDB, DynamoDB, RocksDB, memory; media on S3-compatible stores (Garage, AWS S3, R2, MinIO) or disk |
 | Search | Typesense (opt-in per model, fields chosen by Admins) |
 | Cache | Any server speaking the Redis protocol: Valkey (default), Redis, KeyDB, Dragonfly, managed services. Never tie code or docs to one vendor |
+| Forms | Built-in service (`crates/forms`): headless forms, submissions stored in the settings store and sent to webhooks (`form.submitted`) |
 | `admin/` | Vike + React 19 + Tailwind 4 + daisyUI 5, linted with oxlint, formatted with Prettier |
 | `website/` | Vike + React + Tailwind + daisyUI, Motion for animations, content managed in Tess, prerendered |
 | `docs/` | Docusaurus 3, with local search (`@easyops-cn/docusaurus-search-local`) |

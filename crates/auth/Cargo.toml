@@ -16,7 +16,7 @@ description = "Tess users, sessions (Argon2id, signed tokens) and API tokens."
 argon2 = "0.6.0"
 base64 = "0.23.1"
 chrono = "0.4.45"
-tess-core = { version = "0.1.1", path = "../core" }
+tess-core = { version = "0.2.0", path = "../core" }
 getrandom = "0.4.3"
 hmac = "0.13.0"
 serde = { version = "1.0.229", features = ["derive"] }

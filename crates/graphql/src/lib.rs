@@ -14,6 +14,7 @@ mod admin;
 mod components;
 mod fields;
 pub mod filter;
+mod forms;
 mod i18n;
 pub mod ids;
 mod jsonobj;
@@ -100,6 +101,7 @@ pub struct Services {
     pub auth: Option<Arc<tess_auth::AuthService>>,
     pub i18n: Option<Arc<tess_i18n::I18nService>>,
     pub webhooks: Option<Arc<tess_webhooks::WebhookService>>,
+    pub forms: Option<Arc<tess_forms::FormsService>>,
     /// Embedded workflow editor (n8n), when configured.
     pub workflows: Option<WorkflowsInfo>,
     /// The license Tess runs under (`TESS_LICENSE`).
@@ -204,9 +206,13 @@ impl GraphqlService {
                 .hooks()
                 .add(Arc::new(tess_webhooks::WebhookHook::new(webhooks.clone())));
             webhooks.register_events(tess_i18n::I18N_EVENTS);
+            webhooks.register_events(tess_forms::FORM_EVENTS);
         }
         if let Some(i18n) = &self.services.i18n {
             i18n.install(&self.cms);
+        }
+        if let Some(forms) = &self.services.forms {
+            forms.install(&self.cms);
         }
         self.dirty.store(true, Ordering::SeqCst);
         Ok(())
