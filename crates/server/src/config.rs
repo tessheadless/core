@@ -237,6 +237,32 @@ pub fn search_engine() -> Result<Option<Arc<dyn tess_search::SearchEngine>>> {
     }
 }
 
+/// Response cache selected by `TESS_CACHE` (`none`, `memory`, `valkey`).
+/// Signed media URLs and opaque ids in cached responses must outlive them, so
+/// the TTL is capped at half the shortest of the two lifetimes.
+pub fn cache_service(media_url_ttl: Duration, id_ttl: Duration) -> Result<Option<tess_cache::CacheService>> {
+    let store: Arc<dyn tess_cache::CacheStore> = match var_or("TESS_CACHE", "none").as_str() {
+        "none" => return Ok(None),
+        "memory" => Arc::new(tess_cache::MemoryStore::new(parse_var("TESS_CACHE_MAX_ENTRIES", 10_000)?)),
+        "valkey" | "redis" => {
+            let url = var("VALKEY_URL").context("VALKEY_URL is required for the valkey cache (redis://host:6379)")?;
+            Arc::new(tess_cache::ValkeyStore::new(&url)?)
+        }
+        other => bail!("unsupported TESS_CACHE `{other}` (none, memory, valkey)"),
+    };
+    let mut ttl = Duration::from_secs(parse_var("TESS_CACHE_TTL_SECS", 60)?);
+    let max = media_url_ttl.min(id_ttl) / 2;
+    if ttl > max {
+        tracing::warn!(ttl = ttl.as_secs(), max = max.as_secs(), "TESS_CACHE_TTL_SECS capped: cached URLs and ids would expire");
+        ttl = max;
+    }
+    if ttl.is_zero() {
+        bail!("TESS_CACHE_TTL_SECS must be at least 1");
+    }
+    let config = tess_cache::CacheConfig { ttl, prefix: var_or("TESS_CACHE_PREFIX", "tess:") };
+    Ok(Some(tess_cache::CacheService::new(store, config)))
+}
+
 /// `None` when `TESS_PLUGINS=false`.
 pub fn plugin_limits() -> Result<Option<tess_plugins::PluginLimits>> {
     if !bool_var("TESS_PLUGINS", true)? {

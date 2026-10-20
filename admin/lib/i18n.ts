@@ -208,6 +208,15 @@ export async function deleteKeys(ids: string[]) {
   return data.deleteTranslationKeys;
 }
 
+/** Moves keys to `namespace` (`""` = default); all or nothing. Returns how many moved. */
+export async function moveKeys(ids: string[], namespace: string) {
+  const data = await gql<{ moveTranslationKeys: number }, { ids: string[]; namespace: string }>(
+    `mutation MoveTranslationKeys($ids: [ID!]!, $namespace: String!) { moveTranslationKeys(ids: $ids, namespace: $namespace) }`,
+    { ids, namespace },
+  );
+  return data.moveTranslationKeys;
+}
+
 /** `text: ""` removes the translation; omit `text` to only change the state. */
 export async function setTranslation(keyId: string, language: string, text?: string, state?: TranslationState) {
   const data = await gql<

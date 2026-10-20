@@ -147,15 +147,23 @@ pub(crate) fn stage_input() -> InputValue {
     InputValue::new("stage", TypeRef::named("Stage")).default_value(stage_value(Stage::Published))
 }
 
+/// What the schema is generated from.
+pub(crate) struct Model<'a> {
+    pub content_types: &'a [ContentType],
+    pub components: &'a Components,
+    /// Content types with search enabled (they get `search<Plural>`).
+    pub searchable: &'a std::collections::BTreeSet<String>,
+}
+
 pub(crate) fn build(
-    content_types: &[ContentType],
-    components: &Components,
+    model: Model<'_>,
     config: &SchemaConfig,
     cms: Cms,
     codec: Arc<IdCodec>,
     dirty: SchemaDirty,
     services: &crate::Services,
 ) -> Result<Schema, SchemaError> {
+    let Model { content_types, components, searchable } = model;
     let mut query = Object::new("Query");
     let mut mutation = Object::new("Mutation");
     let mut builder = Schema::build("Query", Some("Mutation"), None);
@@ -182,7 +190,7 @@ pub(crate) fn build(
             builder = ty.register(builder);
         }
         query = query.field(single_query(&ct, &names)).field(list_query(&ct, &names, config));
-        if services.search.is_some() && tess_search::is_searchable(&ct) {
+        if services.search.is_some() && searchable.contains(&ct.api_id) {
             query = query.field(crate::search::search_query(&ct, &names, config));
         }
         for field in entry_mutations(&ct, &names) {
@@ -230,8 +238,13 @@ pub(crate) fn build(
         }
         builder = builder.data(auth.clone());
     }
+    let (q, m, types) = crate::search::definitions(services.search.is_some());
+    query = q.into_iter().fold(query, |o, f| o.field(f));
+    mutation = m.into_iter().fold(mutation, |o, f| o.field(f));
+    for ty in types {
+        builder = ty.register(builder);
+    }
     if let Some(search) = &services.search {
-        mutation = mutation.field(crate::search::reindex_mutation());
         builder = builder.data(search.clone());
     }
     if let Some(plugins) = &services.plugins {

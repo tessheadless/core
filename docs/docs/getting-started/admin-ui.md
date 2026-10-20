@@ -32,6 +32,7 @@ Which pages you see depends on your role:
 | **Users** | Owner, Admin | Create, edit, disable and delete users; set roles and scope. Only Owners manage Owners, and there is always at least one Owner. |
 | **API tokens** | Owner, Admin | Create tokens with a role, scope and expiry (the secret is shown once), list and revoke them. |
 | **Plugins** | Owner, Admin | Upload WebAssembly modules, enable them, scope them to content types, configure them, allow outgoing hosts, read their last error. See [Managing plugins](../plugins/managing.md). |
+| **Search** | Owner, Admin | Enable full-text search per model, pick the indexed fields (the engine schema of each one, generated from its type, is shown), and reindex. Needs `TESS_SEARCH`, see [Search](../devops/search.md). |
 | **My account** | Everyone signed in | Change your password; sign out of every session. |
 
 ### Content manager permissions

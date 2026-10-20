@@ -3,12 +3,12 @@
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
 use async_trait::async_trait;
-use tess_core::{CmsError, ContentType, FieldType, Result, Stage};
+use tess_core::{CmsError, Result, Stage};
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{SearchDoc, SearchEngine, SearchHits, SearchRequest, indexable, text_fields};
+use crate::{IndexField, IndexKind, SearchDoc, SearchEngine, SearchHits, SearchIndex, SearchRequest};
 
 #[derive(Debug, Clone)]
 pub struct TypesenseConfig {
@@ -55,20 +55,24 @@ impl TypesenseEngine {
         if status.is_success() { Ok(body) } else { Err(err(format!("HTTP {status}: {body}"))) }
     }
 
-    fn schema(&self, ct: &ContentType) -> Value {
+    fn schema(&self, index: &SearchIndex) -> Value {
         let mut fields = vec![json!({"name": "stage", "type": "string", "facet": true})];
-        for f in indexable(ct) {
-            let (ty, facet) = match f.field_type {
-                FieldType::Int => ("int64", false),
-                FieldType::Float => ("float", false),
-                FieldType::Boolean => ("bool", true),
-                FieldType::Enum { .. } => ("string", true),
-                _ => ("string", false),
-            };
-            fields.push(json!({"name": f.name, "type": ty, "facet": facet, "optional": true}));
-        }
-        json!({"name": self.collection(&ct.api_id), "fields": fields})
+        fields.extend(index.fields.iter().map(field_schema));
+        json!({"name": self.collection(&index.content_type), "fields": fields})
     }
+}
+
+/// Typesense field definition generated from the field type.
+fn field_schema(f: &IndexField) -> Value {
+    let (ty, facet, sort) = match f.kind {
+        IndexKind::Text => ("string", false, false),
+        IndexKind::Keyword => ("string", true, false),
+        IndexKind::Keywords => ("string[]", true, false),
+        IndexKind::Int | IndexKind::Timestamp => ("int64", false, true),
+        IndexKind::Float => ("float", false, true),
+        IndexKind::Bool => ("bool", true, false),
+    };
+    json!({"name": f.name, "type": ty, "facet": facet, "sort": sort, "optional": true})
 }
 
 #[async_trait]
@@ -77,9 +81,13 @@ impl SearchEngine for TypesenseEngine {
         "typesense"
     }
 
-    async fn reset_index(&self, ct: &ContentType) -> Result<()> {
-        self.drop_index(&ct.api_id).await?;
-        self.ok(self.http.post(self.url("/collections")).json(&self.schema(ct))).await?;
+    fn field_config(&self, field: &IndexField) -> Option<Value> {
+        Some(field_schema(field))
+    }
+
+    async fn reset_index(&self, index: &SearchIndex) -> Result<()> {
+        self.drop_index(&index.content_type).await?;
+        self.ok(self.http.post(self.url("/collections")).json(&self.schema(index))).await?;
         Ok(())
     }
 
@@ -89,7 +97,7 @@ impl SearchEngine for TypesenseEngine {
         if status.is_success() || status == StatusCode::NOT_FOUND { Ok(()) } else { Err(err(format!("HTTP {status}: {body}"))) }
     }
 
-    async fn upsert(&self, ct: &ContentType, docs: Vec<SearchDoc>) -> Result<()> {
+    async fn upsert(&self, index: &SearchIndex, docs: Vec<SearchDoc>) -> Result<()> {
         let mut jsonl = String::new();
         for d in &docs {
             let mut doc = d.fields.clone();
@@ -98,14 +106,14 @@ impl SearchEngine for TypesenseEngine {
             jsonl.push_str(&Value::Object(doc).to_string());
             jsonl.push('\n');
         }
-        let path = format!("/collections/{}/documents/import?action=upsert", self.collection(&ct.api_id));
+        let path = format!("/collections/{}/documents/import?action=upsert", self.collection(&index.content_type));
         let mut attempt = 0;
         loop {
             let (status, body) = self.send(self.http.post(self.url(&path)).body(jsonl.clone())).await?;
             if status == StatusCode::NOT_FOUND && attempt == 0 {
                 // Collection missing (fresh Typesense node): create it and retry.
                 attempt += 1;
-                self.ok(self.http.post(self.url("/collections")).json(&self.schema(ct))).await?;
+                self.ok(self.http.post(self.url("/collections")).json(&self.schema(index))).await?;
                 continue;
             }
             if !status.is_success() {
@@ -130,14 +138,14 @@ impl SearchEngine for TypesenseEngine {
         Ok(())
     }
 
-    async fn search(&self, ct: &ContentType, request: &SearchRequest) -> Result<SearchHits> {
+    async fn search(&self, index: &SearchIndex, request: &SearchRequest) -> Result<SearchHits> {
         let stage = if request.stage == Stage::Draft { "draft" } else { "published" };
         let text = if request.text.trim().is_empty() { "*".to_string() } else { request.text.clone() };
         let limit = request.limit.clamp(1, 250).to_string();
         let offset = request.offset.to_string();
-        let query_by = text_fields(ct).join(",");
+        let query_by = index.text_fields().join(",");
         let filter = format!("stage:={stage}");
-        let path = format!("/collections/{}/documents/search", self.collection(&ct.api_id));
+        let path = format!("/collections/{}/documents/search", self.collection(&index.content_type));
         let req = self.http.get(self.url(&path)).query(&[
             ("q", text.as_str()),
             ("query_by", query_by.as_str()),

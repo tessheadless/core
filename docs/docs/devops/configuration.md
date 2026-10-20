@@ -75,6 +75,18 @@ See [Media storage](media-storage.md).
 
 See [Search](search.md).
 
+## Cache
+
+| Variable | Default | Description |
+|---|---|---|
+| `TESS_CACHE` | `none` | `none`, `valkey` (Valkey or any Redis-compatible server, shared by every instance) or `memory` (one instance). |
+| `VALKEY_URL` | | `redis://[user:password@]host:6379/0`, or `rediss://` for TLS. |
+| `TESS_CACHE_TTL_SECS` | `60` | Lifetime of cached responses; capped at half of `TESS_MEDIA_URL_TTL_SECS` and `TESS_ID_TTL`. |
+| `TESS_CACHE_PREFIX` | `tess:` | Prefix of keys and channels, to share a server between installs. |
+| `TESS_CACHE_MAX_ENTRIES` | `10000` | `memory` only. |
+
+See [Cache](cache.md).
+
 ## Plugins
 
 | Variable | Default | Description |

@@ -25,6 +25,7 @@ mod workflow;
 pub mod naming;
 mod schema;
 
+use std::collections::BTreeSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -156,6 +157,12 @@ impl GraphqlService {
         &self.services
     }
 
+    /// Rebuilds the schema on the next request (e.g. another instance changed
+    /// the content model).
+    pub fn mark_schema_dirty(&self) {
+        self.dirty.store(true, Ordering::SeqCst);
+    }
+
     /// Installs built-in content types and hooks of the enabled services.
     pub async fn install(&self) -> Result<(), CmsError> {
         if let Some(media) = &self.services.media {
@@ -202,10 +209,23 @@ impl GraphqlService {
         }
         let content_types = self.cms.content_types().await?;
         let components = self.cms.components().await?;
+        // Content types with search enabled get a `search<Plural>` query.
+        let searchable: BTreeSet<String> = match &self.services.search {
+            Some(search) => {
+                let settings = search.all_settings().await?;
+                content_types
+                    .iter()
+                    .filter(|ct| settings.get(&ct.api_id).and_then(|s| tess_search::SearchIndex::new(ct, s)).is_some())
+                    .map(|ct| ct.api_id.clone())
+                    .collect()
+            }
+            None => BTreeSet::new(),
+        };
         let fingerprint = {
             let mut h = DefaultHasher::new();
             serde_json::to_string(&content_types).unwrap_or_default().hash(&mut h);
             serde_json::to_string(&components).unwrap_or_default().hash(&mut h);
+            searchable.hash(&mut h);
             h.finish()
         };
         if let Some(b) = guard.as_mut()
@@ -214,9 +234,9 @@ impl GraphqlService {
             b.checked_at = Instant::now();
             return Ok(b.schema.clone());
         }
+        let model = schema::Model { content_types: &content_types, components: &components, searchable: &searchable };
         let schema = schema::build(
-            &content_types,
-            &components,
+            model,
             &self.config,
             self.cms.clone(),
             self.codec.clone(),

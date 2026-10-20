@@ -13,6 +13,7 @@
     "lint": "oxlint --type-aware --ignore-path .gitignore ."
   },
   "dependencies": {
+    "motion": "13.5.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
@@ -21,7 +22,7 @@
     "vike-react": "^0.6.29"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/typography": "^0.5.4",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",

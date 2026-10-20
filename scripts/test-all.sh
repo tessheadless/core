@@ -5,7 +5,7 @@
 
 # Full test suite: unit + API tests, and the storage/media/search/plugin
 # conformance tests against real services started in throwaway containers
-# (Postgres, MySQL, MongoDB, DynamoDB Local, Garage, Typesense). SQLite needs
+# (Postgres, MySQL, MongoDB, DynamoDB Local, Garage, Typesense, Valkey). SQLite needs
 # no service and always runs.
 #
 #   scripts/test-all.sh            # everything
@@ -13,7 +13,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 P=tess-it
-cleanup() { docker rm -f $P-pg $P-mysql $P-mongo $P-ddb $P-garage $P-typesense >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f $P-pg $P-mysql $P-mongo $P-ddb $P-garage $P-typesense $P-valkey >/dev/null 2>&1 || true; }
+
+echo "==> docs examples in sync"
+scripts/sync-doc-examples.py --check
 
 echo "==> building example plugins"
 (cd examples/plugins/rust-slugify && cargo build -q --release --target wasm32-unknown-unknown)
@@ -31,6 +34,7 @@ if [[ -z "${NO_CONTAINERS:-}" ]]; then
   docker run -d --name $P-mysql -e MYSQL_USER=tess -e MYSQL_DATABASE=tess -e MYSQL_PASSWORD="$pg_pass" -e MYSQL_RANDOM_ROOT_PASSWORD=yes -p 127.0.0.1:53506:3306 mysql:8.4 >/dev/null
   docker run -d --name $P-mongo -p 127.0.0.1:57117:27017 mongo:8 >/dev/null
   docker run -d --name $P-ddb -p 127.0.0.1:58100:8000 amazon/dynamodb-local:latest >/dev/null
+  docker run -d --name $P-valkey -p 127.0.0.1:56379:6379 valkey/valkey:8-alpine >/dev/null
   docker run -d --name $P-typesense -p 127.0.0.1:58208:8108 -e TYPESENSE_API_KEY="$ts_key" -e TYPESENSE_DATA_DIR=/data --tmpfs /data typesense/typesense:29.0 >/dev/null
   docker run -d --name $P-garage -p 127.0.0.1:54900:3900 -e GARAGE_RPC_SECRET="$(openssl rand -hex 32)" \
     -e GARAGE_ADMIN_TOKEN="$(openssl rand -hex 32)" -v "$PWD/deploy/garage/garage.toml:/etc/garage.toml:ro" dxflrs/garage:v2.1.0 >/dev/null
@@ -46,6 +50,7 @@ if [[ -z "${NO_CONTAINERS:-}" ]]; then
   export TESS_TEST_MONGODB_URL=mongodb://127.0.0.1:57117
   export TESS_TEST_DYNAMODB_ENDPOINT=http://127.0.0.1:58100 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local AWS_REGION=us-east-1
   export TESS_TEST_TYPESENSE_URL=http://127.0.0.1:58208 TESS_TEST_TYPESENSE_KEY="$ts_key"
+  export TESS_TEST_VALKEY_URL=redis://127.0.0.1:56379
   export TESS_TEST_S3_ENDPOINT=http://127.0.0.1:54900 TESS_TEST_S3_BUCKET=tess-test TESS_TEST_S3_KEY_ID="$s3_id" TESS_TEST_S3_SECRET="$s3_secret"
 fi
 

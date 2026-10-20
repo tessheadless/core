@@ -7,7 +7,7 @@ import type { IAuthenticateGeneric, ICredentialTestRequest, ICredentialType, INo
 export class TessApi implements ICredentialType {
   name = "tessApi";
   displayName = "Tess API";
-  documentationUrl = "https://tessheadless.app/doc/";
+  documentationUrl = "https://tessheadless.com/docs/";
   icon = "file:tess.svg" as const;
 
   properties: INodeProperties[] = [

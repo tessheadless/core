@@ -6,11 +6,15 @@
 # Optional backends are compose profiles, e.g.:
 #   docker compose --profile postgres --profile search up
 #   docker compose --profile n8n up        # workflows (n8n), with TESS_N8N_URL
-# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE accordingly in `.env`.
+#   docker compose --profile cache up      # response cache (Valkey), with TESS_CACHE=valkey
+# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE / TESS_CACHE accordingly in `.env`.
+#
+# Images: ghcr.io/tessheadless/tess:<TESS_VERSION>[-<TESS_ARCH>] (see INSTALL.md).
+# From a source checkout, `docker compose up --build` builds them locally.
 services:
   tess:
     build: .
-    image: tess
+    image: ${TESS_IMAGE:-ghcr.io/tessheadless/tess}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
     env_file: .env
     ports: ["8080:8080"]
     volumes: ["tess-data:/data"]
@@ -22,7 +26,7 @@ services:
     environment:
       POSTGRES_USER: tess
       POSTGRES_DB: tess
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes: ["pg-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "tess"]
@@ -34,7 +38,7 @@ services:
     environment:
       MYSQL_USER: tess
       MYSQL_DATABASE: tess
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     volumes: ["mysql-data:/var/lib/mysql"]
 
@@ -54,8 +58,8 @@ services:
     profiles: [s3]
     image: dxflrs/garage:v2.1.0
     environment:
-      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET in .env}
-      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?set GARAGE_ADMIN_TOKEN in .env}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
     volumes:
       - ./deploy/garage/garage.toml:/etc/garage.toml:ro
       - garage-data:/var/lib/garage
@@ -68,7 +72,7 @@ services:
     build:
       context: .
       dockerfile: deploy/n8n/Dockerfile
-    image: tess-n8n
+    image: ${TESS_N8N_IMAGE:-ghcr.io/tessheadless/tess-n8n}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
     environment:
       # Tess serves n8n under /n8n/ (prefix stripped); n8n generates URLs with it.
       N8N_PATH: /n8n/
@@ -77,7 +81,7 @@ services:
       N8N_PROXY_HOPS: 1
       # Server-sent events go through the Tess proxy (WebSockets do not).
       N8N_PUSH_BACKEND: sse
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
       # `false` only for plain-HTTP local setups.
       N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
       N8N_DIAGNOSTICS_ENABLED: "false"
@@ -85,11 +89,20 @@ services:
     volumes: ["n8n-data:/home/node/.n8n"]
     restart: unless-stopped
 
+  # Response cache (TESS_CACHE=valkey, VALKEY_URL=redis://valkey:6379).
+  valkey:
+    profiles: [cache]
+    image: valkey/valkey:8-alpine
+    # A cache: no persistence, bounded memory. `volatile-lru` evicts cached
+    # responses (they have a TTL) but never the invalidation counters.
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "${VALKEY_MAXMEMORY:-256mb}", "--maxmemory-policy", "volatile-lru"]
+    restart: unless-stopped
+
   typesense:
     profiles: [search]
     image: typesense/typesense:29.0
     environment:
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?set TYPESENSE_API_KEY in .env}
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-}
       TYPESENSE_DATA_DIR: /data
     volumes: ["typesense-data:/data"]
 

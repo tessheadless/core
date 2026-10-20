@@ -5,11 +5,11 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use tess_core::{ContentType, Result};
+use tess_core::Result;
 use serde_json::Value;
 use tokio::sync::RwLock;
 
-use crate::{SearchDoc, SearchEngine, SearchHits, SearchRequest, text_fields};
+use crate::{SearchDoc, SearchEngine, SearchHits, SearchIndex, SearchRequest};
 
 /// Naive in-process engine (case-insensitive substring match on every word),
 /// for tests and tiny installs.
@@ -24,8 +24,8 @@ impl SearchEngine for MemoryEngine {
         "memory"
     }
 
-    async fn reset_index(&self, ct: &ContentType) -> Result<()> {
-        self.indexes.write().await.insert(ct.api_id.clone(), BTreeMap::new());
+    async fn reset_index(&self, index: &SearchIndex) -> Result<()> {
+        self.indexes.write().await.insert(index.content_type.clone(), BTreeMap::new());
         Ok(())
     }
 
@@ -34,11 +34,11 @@ impl SearchEngine for MemoryEngine {
         Ok(())
     }
 
-    async fn upsert(&self, ct: &ContentType, docs: Vec<SearchDoc>) -> Result<()> {
+    async fn upsert(&self, index: &SearchIndex, docs: Vec<SearchDoc>) -> Result<()> {
         let mut indexes = self.indexes.write().await;
-        let index = indexes.entry(ct.api_id.clone()).or_default();
+        let docs_of = indexes.entry(index.content_type.clone()).or_default();
         for d in docs {
-            index.insert(d.doc_id(), d);
+            docs_of.insert(d.doc_id(), d);
         }
         Ok(())
     }
@@ -52,20 +52,20 @@ impl SearchEngine for MemoryEngine {
         Ok(())
     }
 
-    async fn search(&self, ct: &ContentType, request: &SearchRequest) -> Result<SearchHits> {
+    async fn search(&self, index: &SearchIndex, request: &SearchRequest) -> Result<SearchHits> {
         let indexes = self.indexes.read().await;
-        let Some(index) = indexes.get(&ct.api_id) else {
+        let Some(docs) = indexes.get(&index.content_type) else {
             return Ok(SearchHits::default());
         };
         let words: Vec<String> = request.text.split_whitespace().map(str::to_lowercase).collect();
-        let fields = text_fields(ct);
-        let ids: Vec<_> = index
+        let fields = index.text_fields();
+        let ids: Vec<_> = docs
             .values()
             .filter(|d| d.stage == request.stage)
             .filter(|d| {
                 let text = fields
                     .iter()
-                    .filter_map(|f| d.fields.get(f).and_then(Value::as_str))
+                    .filter_map(|f| d.fields.get(*f).and_then(Value::as_str))
                     .collect::<Vec<_>>()
                     .join(" ")
                     .to_lowercase();

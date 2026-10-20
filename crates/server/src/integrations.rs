@@ -68,7 +68,7 @@ pub async fn serve_translations(
         Ok(_) => return (StatusCode::UNAUTHORIZED, "sign in required").into_response(),
         Err(status) => return status.into_response(),
     };
-    let file = match svc.serve(format, &path).await {
+    let file = match served_file(&state, svc, format, &path).await {
         Ok(Some(f)) => f,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(e) => return error(e),
@@ -88,6 +88,33 @@ pub async fn serve_translations(
         h.insert(header::ETAG, v);
     }
     res
+}
+
+/// A rendered translation file, from the response cache when enabled
+/// (rendering every key in every format is the costly part).
+async fn served_file(
+    state: &AppState,
+    svc: &tess_i18n::I18nService,
+    format: Format,
+    path: &str,
+) -> tess_core::Result<Option<tess_i18n::ExportFile>> {
+    let Some(cache) = &state.cache else { return svc.serve(format, path).await };
+    let lookup = cache.lookup(tess_cache::Scope::Translations, &[format.slug().as_bytes(), path.as_bytes()]).await;
+    if let Some(file) = lookup.value.and_then(|v| serde_json::from_slice::<serde_json::Value>(&v).ok()).and_then(|v| {
+        Some(tess_i18n::ExportFile {
+            path: path.to_string(),
+            content: v["content"].as_str()?.to_string(),
+            content_type: v["contentType"].as_str()?.to_string(),
+        })
+    }) {
+        return Ok(Some(file));
+    }
+    let file = svc.serve(format, path).await?;
+    if let (Some(f), Some(key)) = (&file, lookup.key) {
+        let v = serde_json::json!({ "content": f.content, "contentType": f.content_type });
+        cache.store(&key, v.to_string().as_bytes()).await;
+    }
+    Ok(file)
 }
 
 fn hex_prefix(data: &[u8]) -> String {

@@ -120,7 +120,7 @@ async fn components_dynamic_zones_and_new_types() {
         json!({"d": {
             "title": "Home", "email": "ada@example.com", "body": "# Hi\n\n<Callout>MDX ok</Callout>", "day": "2026-10-18",
             "secret": "a long secret",
-            "links": [{"label": "Docs", "url": "https://tessheadless.app/doc/", "author": author_id}],
+            "links": [{"label": "Docs", "url": "https://tessheadless.com/docs/", "author": author_id}],
             "blocks": [
                 {"Hero": {"title": "Welcome", "kind": "WIDE", "cta": {"label": "Start", "url": "https://example.com", "author": author_id}}},
                 {"Link": {"label": "More"}}

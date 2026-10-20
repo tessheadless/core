@@ -128,6 +128,15 @@ async fn translations_api() {
     .await;
     assert_eq!(report["importTranslations"], json!({"keysCreated": 1, "translationsCreated": 1}));
 
+    let ids = ok(&svc, &contributor, "{ translationKeys { items { id } } }", json!({})).await;
+    let ids: Vec<Value> = ids["translationKeys"]["items"].as_array().unwrap().iter().map(|k| k["id"].clone()).collect();
+    let mv = "mutation($ids: [ID!]!, $ns: String!) { moveTranslationKeys(ids: $ids, namespace: $ns) }";
+    assert_eq!(code(&run(&svc, &reviewer, mv, json!({"ids": ids, "ns": "web"})).await), "FORBIDDEN");
+    let moved = ok(&svc, &contributor, mv, json!({"ids": ids, "ns": "web"})).await;
+    assert_eq!(moved["moveTranslationKeys"], 2);
+    let ns = ok(&svc, &contributor, "{ translationNamespaces }", json!({})).await;
+    assert_eq!(ns["translationNamespaces"], json!(["web"]));
+
     // Delivery targets: admin only, secrets write-only.
     let target = r#"mutation($i: TranslationDeliveryTargetInput!) { createTranslationDeliveryTarget(input: $i) { id kind hasSecret formats azureAuth } }"#;
     let input = json!({"i": {"name": "R2", "kind": "S3", "provider": "r2", "bucket": "i18n-bucket",

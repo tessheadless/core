@@ -812,7 +812,7 @@ mod field_type_tests {
             .create_entry(
                 "Page",
                 obj(json!({
-                    "links": [{"label": "Docs", "url": "https://tessheadless.app/doc/"}],
+                    "links": [{"label": "Docs", "url": "https://tessheadless.com/docs/"}],
                     "blocks": [
                         {"__component": "Hero", "title": "Welcome", "cta": {"label": "Start", "url": "https://example.com"}},
                         {"__component": "Link", "label": "More"}

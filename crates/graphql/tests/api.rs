@@ -321,6 +321,31 @@ async fn full_text_search() {
             ok(&svc, &sys(), "mutation($id: ID!) { publishPost(id: $id) { id } }", json!({"id": r["createPost"]["id"]})).await;
         }
     }
+    // Opt-in: no search query until an Admin enables it.
+    let res = run(&svc, &Principal::Public, r#"{ searchPosts(query: "rust") { total } }"#, json!({})).await;
+    assert!(res["errors"].is_array(), "searchPosts is not in the schema yet");
+    let settings = ok(
+        &svc,
+        &sys(),
+        r#"{ searchSettings { engine models { apiId enabled active fields { name type selected supported indexType searchable engineConfig } } } }"#,
+        json!({}),
+    )
+    .await;
+    assert_eq!(settings["searchSettings"]["engine"], "memory");
+    let post = &settings["searchSettings"]["models"].as_array().unwrap().iter().find(|m| m["apiId"] == "Post").unwrap();
+    assert_eq!(post["enabled"], false);
+    assert_eq!(
+        post["fields"][0],
+        json!({"name": "title", "type": "TEXT", "selected": false, "supported": true, "indexType": "TEXT",
+               "searchable": true, "engineConfig": null})
+    );
+    let update = r#"mutation($f: [String!]!) { updateSearchSettings(apiId: "Post", enabled: true, fields: $f) { enabled active indexedEntries fields { name selected } } }"#;
+    assert_eq!(error_code(&run(&svc, &Principal::Public, update, json!({"f": ["title"]})).await), "FORBIDDEN");
+    assert_eq!(error_code(&run(&svc, &sys(), update, json!({"f": []})).await), "BAD_USER_INPUT");
+    let res = ok(&svc, &sys(), update, json!({"f": ["title"]})).await;
+    assert_eq!(res["updateSearchSettings"]["active"], true);
+    assert_eq!(res["updateSearchSettings"]["indexedEntries"], 3, "existing entries are indexed");
+
     let res = ok(&svc, &Principal::Public, r#"{ searchPosts(query: "rust") { total items { title } } }"#, json!({})).await;
     assert_eq!(res["searchPosts"], json!({"total": 1, "items": [{"title": "Rust in production"}]}));
     let res = ok(&svc, &sys(), r#"{ searchPosts(query: "rust", stage: DRAFT) { total } }"#, json!({})).await;

@@ -135,5 +135,11 @@ contentTypes:
           maxLength: 300,
           description: Docs page of the Tess import & export tools,
         }
+      - {
+          name: migrationGuideUrl,
+          type: TEXT,
+          maxLength: 300,
+          description: Step-by-step migration guide in the docs (optional),
+        }
       - { name: asOf, type: DATE, required: true, description: When the facts were last checked }
       - { name: order, type: INT }

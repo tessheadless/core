@@ -12,7 +12,7 @@ const copyrightYears = year > 2026 ? `2026–${year}` : '2026';
 // Docusaurus leaves links that already start with `baseUrl` unprefixed, so
 // `/docs/intro` would break when the site itself lives under /docs/ (GitHub
 // Pages build). There the doc pages are mounted at the site root instead.
-const baseUrl = process.env.DOCS_BASE_URL || '/doc/';
+const baseUrl = process.env.DOCS_BASE_URL || '/docs/';
 const docsRoute = baseUrl === '/docs/' ? '' : '/docs';
 const doc = (path: string) => `${docsRoute}/${path}`;
 
@@ -25,9 +25,9 @@ const config: Config = {
     v4: true,
   },
 
-  // Served at https://tessheadless.app/doc/ (product website: https://tessheadless.com).
-  // The GitHub Pages workflow overrides both to serve the docs under /docs/ of the site.
-  url: process.env.DOCS_URL || 'https://tessheadless.app',
+  // Served at https://tessheadless.com/docs/, under the product website.
+  // DOCS_URL / DOCS_BASE_URL override it (e.g. a fork's GitHub Pages origin).
+  url: process.env.DOCS_URL || 'https://tessheadless.com',
   baseUrl,
   customFields: {docsRoute},
 
@@ -57,6 +57,26 @@ const config: Config = {
     ],
   ],
 
+  // Local search: the index is built with the site (`npm run build`), no
+  // external service. It only works on a build (`npm run serve`), not in
+  // `npm start`.
+  themes: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        indexBlog: false,
+        indexPages: false,
+        // Must match the docs routeBasePath above.
+        docsRouteBasePath: docsRoute === '' ? '/' : '/docs',
+        language: ['en'],
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+        searchResultLimits: 10,
+      },
+    ],
+  ],
+
   themeConfig: {
     colorMode: {
       respectPrefersColorScheme: true,
@@ -74,6 +94,7 @@ const config: Config = {
         {to: doc('category/plugins'), label: 'Plugins', position: 'left'},
         {to: doc('editions'), label: 'Community & Enterprise', position: 'right'},
         {href: 'https://tessheadless.com', label: 'tessheadless.com', position: 'right'},
+        {type: 'search', position: 'right'},
       ],
     },
     footer: {

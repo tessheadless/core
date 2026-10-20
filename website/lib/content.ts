@@ -97,6 +97,8 @@ export interface Competitor {
   chooseTess: string | null;
   migration: string | null;
   importExportUrl: string;
+  /** Step-by-step migration guide, when the docs have one. */
+  migrationGuideUrl: string | null;
   asOf: string;
   order: number | null;
 }
@@ -132,7 +134,7 @@ const COMPETITORS_QUERY = `query WebsiteCompetitors {
   siteCompetitors(orderBy: [order_ASC], first: 200) {
     items {
       name slug website kind summary rows { criterion tess other }
-      chooseThem chooseTess migration importExportUrl asOf order
+      chooseThem chooseTess migration importExportUrl migrationGuideUrl asOf order
     }
   }
 }`;

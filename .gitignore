@@ -4,7 +4,7 @@
 rustc-ice-*.txt
 /target
 **/target/
+**/dist/
+**/node_modules/
 /data/
-.env
-admin/node_modules/
-admin/dist/
+.env*

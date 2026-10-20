@@ -542,6 +542,55 @@ impl I18nService {
         Ok(key)
     }
 
+    /// Moves keys to `namespace` (each gets a new id). All or nothing: fails
+    /// when a key of the same name already exists there, or when two moved
+    /// keys share a name. Returns how many keys moved (those already in
+    /// `namespace` are left unchanged).
+    pub async fn move_keys(self: &Arc<Self>, ids: &[String], namespace: &str, actor: &Actor) -> Result<u32> {
+        require_edit(actor)?;
+        check_namespace(namespace)?;
+        let _guard = self.write_lock.lock().await;
+        let mut moves = Vec::new();
+        let mut names = BTreeSet::new();
+        let mut conflicts = Vec::new();
+        for id in ids.iter().collect::<BTreeSet<_>>() {
+            let key = self.stored_key(id).await?;
+            if key.namespace == namespace {
+                continue;
+            }
+            let new_id = key_id(namespace, &key.name);
+            if !names.insert(key.name.clone())
+                || self.storage.get_setting(&format!("{KEYS_PREFIX}{new_id}")).await?.is_some()
+            {
+                conflicts.push(key.name.clone());
+            }
+            moves.push((id.clone(), key));
+        }
+        if !conflicts.is_empty() {
+            return Err(CmsError::Conflict(format!(
+                "namespace `{namespace}` already has key(s) named {}",
+                conflicts.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ")
+            )));
+        }
+        let ts = format_ts(now());
+        for (id, key) in &mut moves {
+            key.namespace = namespace.to_string();
+            key.updated_at = ts.clone();
+            self.save_key(key).await?;
+            self.storage.delete_setting(&format!("{KEYS_PREFIX}{id}")).await?;
+        }
+        self.invalidate();
+        for (id, key) in &moves {
+            let mut data = key_json(key);
+            data["previousId"] = json!(id);
+            self.emit("i18n.key.update", data, actor).await;
+        }
+        if !moves.is_empty() {
+            self.after_change().await;
+        }
+        Ok(moves.len() as u32)
+    }
+
     pub async fn delete_keys(self: &Arc<Self>, ids: &[String], actor: &Actor) -> Result<u32> {
         require_edit(actor)?;
         let _guard = self.write_lock.lock().await;
@@ -867,5 +916,40 @@ mod tests {
         assert!(s.serve(Format::Json, "xx.json").await.unwrap().is_none());
         let (keys, _) = s.keys(&KeyFilter { tag: Some("imported".into()), ..Default::default() }, 0, 10).await.unwrap();
         assert_eq!(keys.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn move_keys_to_another_namespace() {
+        let s = svc();
+        let admin = Actor::system();
+        s.add_language("en", "English", false, &admin).await.unwrap();
+        let key = |name: &str, namespace: &str| KeyInput {
+            name: name.into(),
+            namespace: namespace.into(),
+            description: None,
+            tags: vec![],
+            plural: false,
+            translations: vec![("en".into(), format!("{namespace}:{name}"))],
+        };
+        let a = s.create_key(key("a", "web"), &admin).await.unwrap();
+        let b = s.create_key(key("b", "web"), &admin).await.unwrap();
+        let b_app = s.create_key(key("b", "app"), &admin).await.unwrap();
+        let c = s.create_key(key("c", "app"), &admin).await.unwrap();
+
+        assert!(s.move_keys(&[a.id()], "bad ns", &admin).await.is_err());
+        assert!(s.move_keys(&[a.id()], "app", &user(Role::Reviewer, &["i18n"])).await.is_err());
+        // `b` exists in both: nothing moves.
+        let err = s.move_keys(&[a.id(), b.id()], "app", &admin).await.unwrap_err();
+        assert!(matches!(&err, CmsError::Conflict(m) if m.contains("`b`")), "{err}");
+        let err = s.move_keys(&[b.id(), b_app.id()], "mobile", &admin).await.unwrap_err();
+        assert!(matches!(err, CmsError::Conflict(_)), "two moved keys named `b`");
+        assert_eq!(s.namespaces().await.unwrap(), vec!["app", "web"]);
+
+        // Keys already there are skipped; translations follow the key.
+        assert_eq!(s.move_keys(&[a.id(), c.id()], "app", &admin).await.unwrap(), 1);
+        let moved = s.key(&key_id("app", "a")).await.unwrap();
+        assert_eq!(moved.translations["en"].text, "web:a");
+        assert!(s.key(&a.id()).await.is_err(), "old id is gone");
+        assert_eq!(s.all_keys().await.unwrap().len(), 4);
     }
 }

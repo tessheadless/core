@@ -6,7 +6,7 @@
 GraphQL-first headless CMS written in Rust, in the spirit of Strapi and
 Hygraph: each content entry is a tile, and your sites and apps are the mosaic.
 
-**Website:** [tessheadless.com](https://tessheadless.com) · **Documentation:** [tessheadless.app/doc](https://tessheadless.app/doc/) One binary runs as an HTTP server (Docker, VM, Kubernetes)
+**Website:** [tessheadless.com](https://tessheadless.com) · **Documentation:** [tessheadless.com/docs](https://tessheadless.com/docs/) One binary runs as an HTTP server (Docker, VM, Kubernetes)
 or as an AWS Lambda function.
 
 - **Content models defined at runtime**: create content types through the API
@@ -22,6 +22,8 @@ or as an AWS Lambda function.
 - **Media library** on S3-compatible stores (Garage, MinIO, AWS S3, R2, ...) or
   the local filesystem, with direct presigned uploads.
 - **Full-text search** with Typesense (pluggable engine).
+- **Response cache** in Valkey (or any Redis-compatible server), shared by all
+  instances and invalidated on every change.
 - **Plugins**: sandboxed WebAssembly modules, installed and configured by admins
   at runtime (Extism; write them in Rust, Go, JS, ...).
 - **Translations** (Tolgee-like): keys, namespaces, languages, review states,
@@ -55,6 +57,7 @@ or as an AWS Lambda function.
 | `crates/storage-{mongodb,dynamodb,rocksdb}` | other database backends                                                                                               |
 | `crates/media`                              | `BlobStore` (S3 / filesystem), `Asset` content type, uploads                                                          |
 | `crates/search`                             | `SearchEngine` (Typesense / memory), indexing hook                                                                    |
+| `crates/cache`                              | `CacheStore` (Valkey / memory), response cache, invalidation hook, cross-instance schema refresh                      |
 | `crates/plugins`                            | WebAssembly plugin runtime and manager                                                                                |
 | `crates/i18n`                               | translations: keys, languages, review, file formats, delivery targets                                                 |
 | `crates/webhooks`                           | outgoing webhooks: subscriptions, signing, retries, delivery log                                                      |
@@ -239,10 +242,12 @@ fields (e.g. a `slug`). See [examples/clients](examples/clients).
 
 ### Search
 
-With `TESS_SEARCH=typesense`, entries are indexed on every change (draft and
-published separately). Every content type with text fields gets
-`search<Plural>`. Results are loaded from the database, so they always match
-stored content. `reindexSearch(apiId)` rebuilds an index.
+With `TESS_SEARCH=typesense`, an Admin enables search per content type in
+**Admin → Search** and picks the indexed fields; the Typesense schema of each
+field is generated from its type. Entries are then indexed on every change
+(draft and published separately) and the type gets `search<Plural>`. Results
+are loaded from the database, so they always match stored content.
+`reindexSearch(apiId)` rebuilds an index.
 
 ### Plugins
 
@@ -319,7 +324,7 @@ TESS_URL=http://localhost:8080 TESS_TOKEN=… tess-transfer export -o tess.yaml
 TESS_URL=https://cms.example.com TESS_TOKEN=… tess-transfer import tess.yaml --dry-run
 ```
 
-See the [import & export guide](https://tessheadless.app/doc/docs/devops/import-export).
+See the [import & export guide](https://tessheadless.com/docs/devops/import-export).
 
 ## Development
 
@@ -360,7 +365,7 @@ evaluator, so filters, sorting and pagination behave identically everywhere.
 
 ## Documentation
 
-The documentation is published at [tessheadless.app/doc](https://tessheadless.app/doc/).
+The documentation is published at [tessheadless.com/docs](https://tessheadless.com/docs/).
 Its source is in [`docs/`](docs) (Docusaurus): `cd docs && npm install && npm start`.
 
 ## License

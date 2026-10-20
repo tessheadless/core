@@ -162,6 +162,10 @@ impl SqlStorage {
                     .create_if_missing(true)
                     .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
                     .busy_timeout(Duration::from_secs(10));
+                // SQLite creates the file, not its folder (e.g. `sqlite://data/tess.db`).
+                if let Some(dir) = opts.get_filename().parent().filter(|d| !d.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(dir).map_err(err)?;
+                }
                 Pool::Sqlite(
                     sqlx::sqlite::SqlitePoolOptions::new()
                         .max_connections(max_connections)

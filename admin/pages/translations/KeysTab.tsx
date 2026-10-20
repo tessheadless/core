@@ -16,6 +16,7 @@ import {
 } from "../../lib/i18n";
 import { useViewer } from "../../lib/viewer";
 import { KeyEditor } from "./KeyEditor";
+import { MoveKeysModal } from "./MoveKeysModal";
 import { NewKeyModal } from "./NewKeyModal";
 import { StateBadge } from "./StateBadge";
 
@@ -44,6 +45,7 @@ export function KeysTab({ overview, onChanged }: Props) {
   const [editing, setEditing] = useState<TranslationKey | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   // Debounced search box.
   useEffect(() => {
@@ -182,6 +184,11 @@ export function KeysTab({ overview, onChanged }: Props) {
           </ul>
         </details>
         <div className="ml-auto flex gap-2">
+          {can.canEdit && selected.size > 0 && (
+            <button type="button" className="btn btn-sm btn-outline" onClick={() => setMoving(true)}>
+              Change namespace ({selected.size})
+            </button>
+          )}
           {can.canEdit && selected.size > 0 && (
             <button type="button" className="btn btn-sm btn-error btn-outline" onClick={() => setConfirmDelete(true)}>
               Delete {selected.size}
@@ -346,6 +353,19 @@ export function KeysTab({ overview, onChanged }: Props) {
             toast.success(`Key “${k.name}” created.`);
             refresh();
             setEditing(k);
+          }}
+        />
+      )}
+      {moving && (
+        <MoveKeysModal
+          ids={[...selected]}
+          namespaces={overview.translationNamespaces}
+          onClose={() => setMoving(false)}
+          onMoved={(n, ns) => {
+            // Moved keys get new ids.
+            setSelected(new Set());
+            toast.success(`${n} key${n === 1 ? "" : "s"} moved to ${ns ? `“${ns}”` : "the default namespace"}.`);
+            refresh();
           }}
         />
       )}

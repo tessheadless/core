@@ -102,7 +102,7 @@ mutation($data: PageCreateInput!) { createPage(data: $data) { id } }
 {
   "data": {
     "title": "Home",
-    "links": [{ "label": "Docs", "url": "https://tessheadless.app/doc/" }],
+    "links": [{ "label": "Docs", "url": "https://tessheadless.com/docs/" }],
     "blocks": [
       { "Hero": { "title": "Welcome", "cta": { "label": "Start", "url": "https://example.com" } } },
       { "Link": { "label": "More" } }

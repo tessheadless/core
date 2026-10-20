@@ -1,12 +1,10 @@
 target/
 **/target/
-admin/node_modules/
+**/node_modules/
 admin/dist/
 data/
-.env
+.env*
 .git/
-**/node_modules/
 integrations/n8n-nodes-tess/dist/
-docs/build/
-docs/.docusaurus/
-website/dist/
+docs/
+website/

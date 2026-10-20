@@ -550,6 +550,27 @@ fn mutations() -> Vec<Field> {
     })
     .description("Returns how many keys were deleted.")
     .argument(InputValue::new("ids", T::named_nn_list_nn(T::ID)));
+    let move_keys = Field::new("moveTranslationKeys", T::named_nn(T::INT), |ctx| {
+        FieldFuture::new(async move {
+            let actor = require_write(&ctx)?;
+            let ids: Vec<String> = ctx
+                .args
+                .try_get("ids")?
+                .list()?
+                .iter()
+                .map(|v| v.string().map(String::from))
+                .collect::<Result<_, _>>()?;
+            let namespace = str_arg(&ctx, "namespace")?;
+            let n = service(&ctx)?.move_keys(&ids, &namespace, &actor).await.map_err(cms_err)?;
+            Ok(Some(FieldValue::value(n as i64)))
+        })
+    })
+    .description(
+        "Moves keys to another namespace; each moved key gets a new id. Fails, moving nothing, when the namespace \
+         already has a key of the same name. Returns how many keys moved.",
+    )
+    .argument(InputValue::new("ids", T::named_nn_list_nn(T::ID)))
+    .argument(InputValue::new("namespace", T::named_nn(T::STRING)));
     let set = Field::new("setTranslation", T::named_nn("TranslationKey"), |ctx| {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
@@ -701,6 +722,7 @@ fn mutations() -> Vec<Field> {
         create_key,
         update_key,
         delete_keys,
+        move_keys,
         set,
         import,
         settings,

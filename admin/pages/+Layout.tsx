@@ -141,6 +141,7 @@ function navItems(a: Abilities): NavItem[] {
       { href: "/components", label: "Components" },
       { href: "/users", label: "Users" },
       { href: "/api-tokens", label: "API tokens" },
+      { href: "/search", label: "Search" },
       { href: "/webhooks", label: "Webhooks" },
       { href: "/plugins", label: "Plugins" },
     );

@@ -11,6 +11,9 @@
 #                           # (one `openssl rand -hex 32` each)
 #   docker compose -f docker-compose-local.yml up --build
 #
+# With a release bundle (no sources), the published image is pulled instead:
+# see INSTALL.md.
+#
 # Then open http://localhost:8080/admin/ and create the first Owner with
 # TESS_ADMIN_TOKEN. Data survives restarts; `down -v` deletes it.
 name: tess-local
@@ -18,7 +21,7 @@ name: tess-local
 services:
   tess:
     build: .
-    image: tess
+    image: ${TESS_IMAGE:-ghcr.io/tessheadless/tess}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
     ports:
       - 8080:8080
     environment:
@@ -40,9 +43,43 @@ services:
       TESS_MCP_URL: ${TESS_MCP_URL:-/mcp}
       TESS_MCP_TOKEN: ${TESS_MCP_TOKEN:-}
       TESS_MCP_ALLOWED_HOSTS: ${TESS_MCP_ALLOWED_HOSTS}
+      # Encrypts stored webhook and storage credentials (falls back to
+      # TESS_SESSION_SECRET when empty).
+      TESS_SECRETS_KEY: ${TESS_SECRETS_KEY:-}
+      # Workflows: set TESS_N8N_URL=http://n8n:5678 with the `n8n` profile.
+      TESS_N8N_URL: ${TESS_N8N_URL:-}
     volumes:
       - tess-local-data:/data
     restart: unless-stopped
 
+  # Workflow automation (optional), embedded in the admin UI at
+  # /admin/workflows and proxied by Tess under /n8n/:
+  #   docker compose -f docker-compose-local.yml --profile n8n up -d
+  # with TESS_N8N_URL=http://n8n:5678 and N8N_ENCRYPTION_KEY in `.env` (without
+  # a key, n8n generates one and keeps it in its volume).
+  n8n:
+    profiles: [n8n]
+    build:
+      context: .
+      dockerfile: deploy/n8n/Dockerfile
+    image: ${TESS_N8N_IMAGE:-ghcr.io/tessheadless/tess-n8n}:${TESS_VERSION:-latest}${TESS_ARCH:+-${TESS_ARCH}}
+    environment:
+      # Tess serves n8n under /n8n/ (prefix stripped); n8n generates URLs with it.
+      N8N_PATH: /n8n/
+      N8N_EDITOR_BASE_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      N8N_PROXY_HOPS: 1
+      # Server-sent events go through the Tess proxy (WebSockets do not).
+      N8N_PUSH_BACKEND: sse
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      # Plain HTTP on localhost; set `true` behind HTTPS.
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
+    volumes:
+      - n8n-local-data:/home/node/.n8n
+    restart: unless-stopped
+
 volumes:
   tess-local-data:
+  n8n-local-data:

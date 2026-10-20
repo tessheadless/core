@@ -1,0 +1,31 @@
+# Tess models for the Strapi example (docs: Migrate from Strapi).
+#   tess-transfer import strapi-models.yaml --dry-run
+#   tess-transfer import strapi-models.yaml
+version: 1
+components:
+  - apiId: Seo                       # Strapi component shared.seo
+    fields:
+      - { name: metaTitle, type: TEXT, maxLength: 60 }
+      - { name: metaDescription, type: TEXT, maxLength: 160 }
+  - apiId: Quote                     # shared.quote
+    fields:
+      - { name: title, type: TEXT }
+      - { name: body, type: TEXT, maxLength: null }
+  - apiId: RichText                  # shared.rich-text
+    fields:
+      - { name: body, type: MARKDOWN }
+contentTypes:
+  - apiId: Category
+    pluralApiId: categories
+    fields:
+      - { name: name, type: TEXT, required: true }
+      - { name: slug, type: TEXT, required: true, pattern: "^[a-z0-9-]+$" }
+  - apiId: Article
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 200 }
+      - { name: slug, type: TEXT, required: true, pattern: "^[a-z0-9-]+$" }
+      - { name: body, type: MARKDOWN }                              # Strapi `content` (richtext)
+      - { name: cover, type: RELATION, relationTarget: Asset }      # Strapi `cover_image` (media)
+      - { name: category, type: RELATION, relationTarget: Category }
+      - { name: seo, type: COMPONENT, component: Seo }
+      - { name: blocks, type: DYNAMIC_ZONE, components: [Quote, RichText] }

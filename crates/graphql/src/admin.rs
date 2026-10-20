@@ -31,7 +31,7 @@ const KINDS: &[&str] = &[
     "DYNAMIC_ZONE",
 ];
 
-fn kind_of(ft: &FieldType) -> &'static str {
+pub(crate) fn kind_of(ft: &FieldType) -> &'static str {
     match ft {
         FieldType::Text { .. } => "TEXT",
         FieldType::Markdown => "MARKDOWN",

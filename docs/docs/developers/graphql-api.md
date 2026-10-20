@@ -189,5 +189,6 @@ draft to the published version.
 
 When an Admin changes a content model, the instance handling the request
 rebuilds its schema immediately. Other instances do so within
-`TESS_SCHEMA_REFRESH_SECS`. A request can't use the operations of a type
+`TESS_SCHEMA_REFRESH_SECS`, or at once when they share a
+[Valkey cache](../devops/cache.md). A request can't use the operations of a type
 created in the same request.

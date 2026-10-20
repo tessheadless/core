@@ -42,6 +42,7 @@ tess-mcp = { path = "../mcp" }
 tess-media = { path = "../media", default-features = false }
 tess-plugins = { path = "../plugins" }
 tess-search = { path = "../search" }
+tess-cache = { path = "../cache" }
 tess-webhooks = { path = "../webhooks" }
 tess-storage-dynamodb = { path = "../storage-dynamodb", optional = true }
 tess-storage-mongodb = { path = "../storage-mongodb", optional = true }

@@ -1,0 +1,9 @@
+{
+  "label": "Migrate to Tess",
+  "position": 8,
+  "link": {
+    "type": "generated-index",
+    "slug": "/category/migration",
+    "description": "Move your content models, media and entries from another CMS to Tess, with worked examples."
+  }
+}

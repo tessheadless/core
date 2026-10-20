@@ -5,6 +5,7 @@
 //! CMS server: one binary that runs as a regular HTTP server (Docker, VM) or,
 //! when it detects the Lambda runtime, as an AWS Lambda function.
 
+mod cache;
 mod config;
 mod integrations;
 mod routes;
@@ -12,7 +13,7 @@ mod routes;
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
+use async_graphql_axum::GraphQLRequest;
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
@@ -36,6 +37,7 @@ pub(crate) struct AppState {
     auth: Arc<tess_auth::AuthService>,
     public_read: bool,
     n8n: Option<integrations::N8nProxy>,
+    cache: Option<tess_cache::CacheService>,
 }
 
 impl AppState {
@@ -87,7 +89,7 @@ async fn mcp_auth(
 
 async fn graphql(State(state): State<Arc<AppState>>, headers: HeaderMap, req: GraphQLRequest) -> Response {
     match state.principal(&headers).await {
-        Ok(principal) => GraphQLResponse::from(state.service.execute(req.into_inner(), principal).await).into_response(),
+        Ok(principal) => cache::execute(&state.service, state.cache.as_ref(), req.into_inner(), principal).await,
         Err(status) => (status, Json(serde_json::json!({"errors": [{"message": "invalid credentials"}]}))).into_response(),
     }
 }
@@ -129,6 +131,7 @@ async fn health(State(state): State<Arc<AppState>>) -> Response {
     let body = serde_json::json!({
         "status": if status.is_success() { "ok" } else { "unavailable" },
         "storage": state.storage_name,
+        "cache": state.cache.as_ref().map(|c| c.name()),
     });
     (status, Json(body)).into_response()
 }
@@ -260,6 +263,7 @@ async fn main() -> Result<()> {
         plugin: config::plugin_limits()?.map_or(0, |l| l.max_module_bytes),
     };
     let ref_codec = Arc::new(config::id_codec()?);
+    let cache = config::cache_service(media_config.url_ttl, codec.ttl())?;
     let auth = config::auth_service(storage.clone())?;
     let secrets = config::secrets_key()?;
     let n8n = config::n8n_config()?;
@@ -302,8 +306,16 @@ async fn main() -> Result<()> {
         auth,
         public_read: config.public_read,
         n8n: n8n.map(integrations::N8nProxy::new),
+        cache,
     });
     state.service.install().await?;
+    if let Some(cache) = &state.cache {
+        state.service.cms().hooks().add(Arc::new(cache.hook()));
+        // Another instance changed the content model: rebuild the schema now.
+        let service = state.service.clone();
+        cache.on_schema_change(move || service.mark_schema_dirty());
+        tracing::info!(cache = cache.name(), ttl_secs = cache.config().ttl.as_secs(), "response cache enabled");
+    }
     // Fail fast if the stored content model cannot produce a schema.
     state.service.schema().await?;
     let app = router(state.clone(), &config, &limits);

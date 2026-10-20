@@ -133,6 +133,10 @@ mutation($id: ID!) {
   review: setTranslation(keyId: $id, language: "fr", state: REVIEWED) { id }   # reviewers
 }
 
+# Bulk move (admin UI: select keys → "Change namespace"). Moved keys get new
+# ids; nothing moves if the namespace already has a key of the same name.
+mutation($ids: [ID!]!) { moveTranslationKeys(ids: $ids, namespace: "checkout") }
+
 mutation($file: String!) {
   importTranslations(input: { format: PO, content: $file, language: "de", mode: KEEP }) {
     keysCreated translationsCreated translationsUpdated translationsSkipped
