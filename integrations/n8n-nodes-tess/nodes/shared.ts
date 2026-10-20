@@ -58,6 +58,11 @@ export async function contentTypeOptions(this: ILoadOptionsFunctions): Promise<I
   return (await contentTypes(this)).map((t) => ({ name: t.apiId, value: t.apiId }));
 }
 
+export async function formOptions(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+  const data = await tessGraphql(this, "{ forms { id title slug } }");
+  return ((data.forms as IDataObject[]) ?? []).map((f) => ({ name: `${f.title} (${f.slug})`, value: f.id as string }));
+}
+
 export async function eventOptions(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
   const data = await tessGraphql(this, "{ webhookEvents }");
   const events = ((data.webhookEvents as string[]) ?? []).filter((e) => e !== "webhook.ping");
@@ -119,3 +124,4 @@ export function rewriteOrigin(url: string, origin: string): string {
   u.host = o.host;
   return u.toString();
 }
+

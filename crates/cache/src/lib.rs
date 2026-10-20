@@ -201,6 +201,10 @@ impl Hook for CacheHook {
     }
 
     async fn on_event(&self, event: &SystemEvent) {
+        // Form submissions don't change content.
+        if event.event.starts_with("form.") {
+            return;
+        }
         if event.event.starts_with("i18n.") {
             self.0.invalidate(Scope::Translations).await;
             return;

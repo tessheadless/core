@@ -11,7 +11,7 @@ import {
   type INodeType,
   type INodeTypeDescription,
 } from "n8n-workflow";
-import { contentTypeOptions, contentTypes, defaultSelection, names, tessGraphql } from "../shared";
+import { contentTypeOptions, contentTypes, defaultSelection, formOptions, names, tessGraphql } from "../shared";
 
 const FORMATS = [
   "JSON",
@@ -62,6 +62,7 @@ export class Tess implements INodeType {
         options: [
           { name: "Entry", value: "entry" },
           { name: "Translation", value: "translation" },
+          { name: "Form", value: "form" },
           { name: "GraphQL", value: "graphql" },
         ],
         default: "entry",
@@ -246,6 +247,37 @@ export class Tess implements INodeType {
         description: "Delivery target to publish; empty publishes every enabled target",
       },
 
+      // ---- forms --------------------------------------------------------
+      {
+        displayName: "Operation",
+        name: "operation",
+        type: "options",
+        noDataExpression: true,
+        displayOptions: { show: { resource: ["form"] } },
+        options: [{ name: "Get Submissions", value: "getSubmissions", action: "List the submissions of a form" }],
+        default: "getSubmissions",
+      },
+      {
+        displayName: "Form Name or ID",
+        name: "formId",
+        type: "options",
+        typeOptions: { loadOptionsMethod: "getForms" },
+        displayOptions: { show: { resource: ["form"] } },
+        default: "",
+        required: true,
+        description:
+          'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. New submissions start workflows with the Tess Trigger (form.submitted).',
+      },
+      {
+        displayName: "Limit",
+        name: "limit",
+        type: "number",
+        typeOptions: { minValue: 1, maxValue: 500 },
+        displayOptions: { show: { resource: ["form"] } },
+        default: 50,
+        description: "Max number of results to return, newest first",
+      },
+
       // ---- raw GraphQL --------------------------------------------------
       {
         displayName: "Query",
@@ -267,7 +299,7 @@ export class Tess implements INodeType {
     ],
   };
 
-  methods = { loadOptions: { getContentTypes: contentTypeOptions } };
+  methods = { loadOptions: { getContentTypes: contentTypeOptions, getForms: formOptions } };
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
@@ -282,6 +314,16 @@ export class Tess implements INodeType {
 
         if (resource === "graphql") {
           push(await tessGraphql(this, this.getNodeParameter("query", i) as string, json(this, "variables", i)));
+          continue;
+        }
+
+        if (resource === "form") {
+          const res = await tessGraphql(
+            this,
+            `query($f: ID!, $n: Int) { formSubmissions(formId: $f, first: $n) { items { id formId data submittedAt source } } }`,
+            { f: this.getNodeParameter("formId", i), n: this.getNodeParameter("limit", i, 50) },
+          );
+          push(((res.formSubmissions as IDataObject).items as IDataObject[]) ?? []);
           continue;
         }
 
@@ -399,3 +441,4 @@ export class Tess implements INodeType {
     return [out];
   }
 }
+

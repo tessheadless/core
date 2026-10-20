@@ -23,6 +23,7 @@ tess-i18n = { version = "0.1.1", path = "../i18n", default-features = false }
 tess-media = { version = "0.1.1", path = "../media", default-features = false }
 tess-plugins = { version = "0.1.1", path = "../plugins" }
 tess-search = { version = "0.1.1", path = "../search" }
+tess-forms = { version = "0.1.1", path = "../forms" }
 tess-webhooks = { version = "0.1.1", path = "../webhooks" }
 getrandom = "0.4.3"
 hmac = "0.13.0"

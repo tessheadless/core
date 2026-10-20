@@ -145,6 +145,7 @@ function navItems(a: Abilities, workflows: boolean): NavItem[] {
       { href: "/users", label: "Users" },
       { href: "/api-tokens", label: "API tokens" },
       { href: "/search", label: "Search" },
+      { href: "/forms", label: "Forms" },
       { href: "/webhooks", label: "Webhooks" },
       { href: "/plugins", label: "Plugins" },
     );

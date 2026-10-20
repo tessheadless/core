@@ -26,6 +26,8 @@ or as an AWS Lambda function.
   instances and invalidated on every change.
 - **Plugins**: sandboxed WebAssembly modules, installed and configured by admins
   at runtime (Extism; write them in Rust, Go, JS, ...).
+- **Forms**: define contact, reservation or sign-up forms in the admin; front-ends
+  post to `/api/forms/<slug>` and every submission starts n8n workflows.
 - **Translations** (Tolgee-like): keys, namespaces, languages, review states,
   import/export (JSON, i18next, ARB, XLIFF, PO, properties, Android, Apple,
   YAML, CSV), live files at `/i18n/{format}/{file}` and publishing to Garage,
