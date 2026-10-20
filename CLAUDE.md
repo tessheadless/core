@@ -74,6 +74,11 @@ a database, or a heavy dependency.
 
 - Website: <https://tessheadless.com>. Documentation:
   <https://tessheadless.com/docs/>. Never use `tessheadless.app`.
+- **Inside `website/` and `docs/`, links between the two are relative** (`/docs/…`
+  from the website, `/` from the docs), never `https://tessheadless.com/…`.
+  Website links into `/docs/` get `rel="external"` (no Vike client routing);
+  docs links to `/` are plain HTML (`html` navbar/footer items, `<a href="/">`
+  in Markdown) so Docusaurus doesn't add its `/docs/` base.
 - GitHub: <https://github.com/tessheadless/core>. Discord:
   <https://discord.gg/CyUjPVXK65>.
 - Docker images: `ghcr.io/tessheadless/tess` and `ghcr.io/tessheadless/tess-n8n`,

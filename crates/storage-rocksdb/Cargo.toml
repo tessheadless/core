@@ -14,7 +14,7 @@ description = "Tess storage backend for RocksDB."
 
 [dependencies]
 async-trait = "0.1.92"
-tess-core = { version = "0.1.0", path = "../core" }
+tess-core = { version = "0.1.1", path = "../core" }
 rocksdb = "0.25.0"
 serde = "1.0.229"
 serde_json = "1.0.154"

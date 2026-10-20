@@ -17,13 +17,13 @@ async-graphql = { version = "7.2.1", features = ["dynamic-schema", "chrono"] }
 base64 = "0.23.1"
 chacha20poly1305 = "0.11.0"
 chrono = "0.4.45"
-tess-auth = { version = "0.1.0", path = "../auth" }
-tess-core = { version = "0.1.0", path = "../core" }
-tess-i18n = { version = "0.1.0", path = "../i18n", default-features = false }
-tess-media = { version = "0.1.0", path = "../media", default-features = false }
-tess-plugins = { version = "0.1.0", path = "../plugins" }
-tess-search = { version = "0.1.0", path = "../search" }
-tess-webhooks = { version = "0.1.0", path = "../webhooks" }
+tess-auth = { version = "0.1.1", path = "../auth" }
+tess-core = { version = "0.1.1", path = "../core" }
+tess-i18n = { version = "0.1.1", path = "../i18n", default-features = false }
+tess-media = { version = "0.1.1", path = "../media", default-features = false }
+tess-plugins = { version = "0.1.1", path = "../plugins" }
+tess-search = { version = "0.1.1", path = "../search" }
+tess-webhooks = { version = "0.1.1", path = "../webhooks" }
 getrandom = "0.4.3"
 hmac = "0.13.0"
 serde_json = "1.0.154"
