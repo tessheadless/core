@@ -74,7 +74,11 @@ pub struct FieldDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_length: Option<u32>,
     /// TEXT: absent = server default (80), `null` = unlimited.
-    #[serde(default, deserialize_with = "double_option", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub max_length: Option<Option<u32>>,
     /// TEXT: regex the whole value must match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -117,13 +121,19 @@ pub struct UserDef {
 }
 
 pub fn relation_targets(fields: &[FieldDef]) -> impl Iterator<Item = &str> {
-    fields.iter().filter(|f| f.kind == "RELATION").filter_map(|f| f.relation_target.as_deref())
+    fields
+        .iter()
+        .filter(|f| f.kind == "RELATION")
+        .filter_map(|f| f.relation_target.as_deref())
 }
 
 /// Components used by COMPONENT and DYNAMIC_ZONE fields.
 pub fn component_refs(fields: &[FieldDef]) -> impl Iterator<Item = &str> {
     fields.iter().flat_map(|f| {
-        f.component.as_deref().into_iter().chain(f.components.iter().flatten().map(String::as_str))
+        f.component
+            .as_deref()
+            .into_iter()
+            .chain(f.components.iter().flatten().map(String::as_str))
     })
 }
 
@@ -131,7 +141,12 @@ pub fn component_refs(fields: &[FieldDef]) -> impl Iterator<Item = &str> {
 pub fn without_relations_to(fields: &[FieldDef], targets: &BTreeSet<String>) -> Vec<FieldDef> {
     fields
         .iter()
-        .filter(|f| !(f.kind == "RELATION" && f.relation_target.as_ref().is_some_and(|t| targets.contains(t))))
+        .filter(|f| {
+            !(f.kind == "RELATION"
+                && f.relation_target
+                    .as_ref()
+                    .is_some_and(|t| targets.contains(t)))
+        })
         .cloned()
         .collect()
 }
@@ -143,13 +158,19 @@ impl ModelDef {
 
     /// The same model without its relation fields pointing to `targets`.
     pub fn without_relations_to(&self, targets: &BTreeSet<String>) -> ModelDef {
-        ModelDef { fields: without_relations_to(&self.fields, targets), ..self.clone() }
+        ModelDef {
+            fields: without_relations_to(&self.fields, targets),
+            ..self.clone()
+        }
     }
 }
 
 impl ComponentDoc {
     pub fn without_relations_to(&self, targets: &BTreeSet<String>) -> ComponentDoc {
-        ComponentDoc { fields: without_relations_to(&self.fields, targets), ..self.clone() }
+        ComponentDoc {
+            fields: without_relations_to(&self.fields, targets),
+            ..self.clone()
+        }
     }
 }
 
@@ -169,7 +190,10 @@ impl Document {
             serde_norway::from_str(text).context("invalid YAML")?
         };
         if doc.version != FORMAT_VERSION {
-            bail!("unsupported file version {} (expected {FORMAT_VERSION})", doc.version);
+            bail!(
+                "unsupported file version {} (expected {FORMAT_VERSION})",
+                doc.version
+            );
         }
         Ok(doc)
     }
@@ -207,7 +231,10 @@ users:
         let post = &doc.content_types.as_ref().unwrap()[0];
         assert!(post.workflow);
         assert_eq!(post.relation_targets().collect::<Vec<_>>(), vec!["Tag"]);
-        assert_eq!(doc.users.as_ref().unwrap()[0].password.as_deref(), Some("only-for-import"));
+        assert_eq!(
+            doc.users.as_ref().unwrap()[0].password.as_deref(),
+            Some("only-for-import")
+        );
 
         // Passwords are never written back.
         for json in [false, true] {
@@ -219,8 +246,19 @@ users:
         // `maxLength: null` (unlimited) survives; absent stays absent.
         let text = doc.render(false).unwrap();
         assert!(text.contains("maxLength: null"), "{text}");
-        assert_eq!(Document::parse(&text, false).unwrap().content_types.unwrap()[0].fields[0].max_length, Some(None));
-        assert_eq!(doc.content_types.as_ref().unwrap()[0].fields[1].max_length, None);
+        assert_eq!(
+            Document::parse(&text, false)
+                .unwrap()
+                .content_types
+                .unwrap()[0]
+                .fields[0]
+                .max_length,
+            Some(None)
+        );
+        assert_eq!(
+            doc.content_types.as_ref().unwrap()[0].fields[1].max_length,
+            None
+        );
         // Defaults are omitted.
         let text = doc.render(false).unwrap();
         assert!(!text.contains("many: false") && !text.contains("required: false"));
@@ -229,7 +267,13 @@ users:
     #[test]
     fn rejects_unknown_keys_and_versions() {
         assert!(Document::parse("version: 2\n", false).is_err());
-        assert!(Document::parse("contentTypes: [{apiId: A, fields: [], colour: red}]\n", false).is_err());
+        assert!(
+            Document::parse(
+                "contentTypes: [{apiId: A, fields: [], colour: red}]\n",
+                false
+            )
+            .is_err()
+        );
     }
 
     #[test]

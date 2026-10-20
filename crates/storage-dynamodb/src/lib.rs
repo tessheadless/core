@@ -46,7 +46,11 @@ impl DynamoDbStorage {
             loader = loader.endpoint_url(endpoint);
         }
         let config = loader.load().await;
-        DynamoDbStorage { client: Client::new(&config), table: table.to_string(), create_table }
+        DynamoDbStorage {
+            client: Client::new(&config),
+            table: table.to_string(),
+            create_table,
+        }
     }
 
     async fn get_doc(&self, pk: String, sk: String) -> Result<Option<String>> {
@@ -105,7 +109,10 @@ impl DynamoDbStorage {
             let mut requests: Vec<WriteRequest> = chunk
                 .iter()
                 .map(|key| {
-                    let delete = DeleteRequest::builder().set_key(Some(key.clone())).build().map_err(storage_err)?;
+                    let delete = DeleteRequest::builder()
+                        .set_key(Some(key.clone()))
+                        .build()
+                        .map_err(storage_err)?;
                     Ok(WriteRequest::builder().delete_request(delete).build())
                 })
                 .collect::<Result<_>>()?;
@@ -118,11 +125,17 @@ impl DynamoDbStorage {
                     .send()
                     .await
                     .map_err(storage_err)?;
-                requests = out.unprocessed_items.unwrap_or_default().remove(&self.table).unwrap_or_default();
+                requests = out
+                    .unprocessed_items
+                    .unwrap_or_default()
+                    .remove(&self.table)
+                    .unwrap_or_default();
                 if !requests.is_empty() {
                     attempt += 1;
                     if attempt > 8 {
-                        return Err(CmsError::Storage("batch delete kept being throttled".into()));
+                        return Err(CmsError::Storage(
+                            "batch delete kept being throttled".into(),
+                        ));
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(50 << attempt)).await;
                 }
@@ -132,9 +145,18 @@ impl DynamoDbStorage {
     }
 
     async fn ensure_table(&self) -> Result<()> {
-        match self.client.describe_table().table_name(&self.table).send().await {
+        match self
+            .client
+            .describe_table()
+            .table_name(&self.table)
+            .send()
+            .await
+        {
             Ok(_) => return Ok(()),
-            Err(err) if err.as_service_error().is_some_and(|e| e.is_resource_not_found_exception()) => {}
+            Err(err)
+                if err
+                    .as_service_error()
+                    .is_some_and(|e| e.is_resource_not_found_exception()) => {}
             Err(err) => return Err(storage_err(err)),
         }
         let attr = |name: &str| {
@@ -145,7 +167,11 @@ impl DynamoDbStorage {
                 .map_err(storage_err)
         };
         let key = |name: &str, kind| {
-            KeySchemaElement::builder().attribute_name(name).key_type(kind).build().map_err(storage_err)
+            KeySchemaElement::builder()
+                .attribute_name(name)
+                .key_type(kind)
+                .build()
+                .map_err(storage_err)
         };
         let created = self
             .client
@@ -160,18 +186,30 @@ impl DynamoDbStorage {
             .await;
         if let Err(err) = created {
             // Another instance may have won the race.
-            if !err.as_service_error().is_some_and(|e| e.is_resource_in_use_exception()) {
+            if !err
+                .as_service_error()
+                .is_some_and(|e| e.is_resource_in_use_exception())
+            {
                 return Err(storage_err(err));
             }
         }
         for _ in 0..60 {
-            let out = self.client.describe_table().table_name(&self.table).send().await.map_err(storage_err)?;
+            let out = self
+                .client
+                .describe_table()
+                .table_name(&self.table)
+                .send()
+                .await
+                .map_err(storage_err)?;
             if out.table.and_then(|t| t.table_status) == Some(TableStatus::Active) {
                 return Ok(());
             }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
-        Err(CmsError::Storage(format!("table `{}` did not become active", self.table)))
+        Err(CmsError::Storage(format!(
+            "table `{}` did not become active",
+            self.table
+        )))
     }
 }
 
@@ -226,16 +264,27 @@ impl Storage for DynamoDbStorage {
     }
 
     async fn get_content_type(&self, api_id: &str) -> Result<Option<ContentType>> {
-        self.get_doc(CT_PK.into(), api_id.into()).await?.map(|d| decode(&d)).transpose()
+        self.get_doc(CT_PK.into(), api_id.into())
+            .await?
+            .map(|d| decode(&d))
+            .transpose()
     }
 
     async fn put_content_type(&self, content_type: &ContentType) -> Result<()> {
-        self.put_doc(CT_PK.into(), content_type.api_id.clone(), encode(content_type)?).await
+        self.put_doc(
+            CT_PK.into(),
+            content_type.api_id.clone(),
+            encode(content_type)?,
+        )
+        .await
     }
 
     async fn delete_content_type(&self, api_id: &str) -> Result<()> {
         let key = |pk: String, sk: String| {
-            HashMap::from([("pk".to_string(), AttributeValue::S(pk)), ("sk".to_string(), AttributeValue::S(sk))])
+            HashMap::from([
+                ("pk".to_string(), AttributeValue::S(pk)),
+                ("sk".to_string(), AttributeValue::S(sk)),
+            ])
         };
         let mut keys: Vec<_> = self
             .query_partition(&entries_pk(api_id))
@@ -251,11 +300,19 @@ impl Storage for DynamoDbStorage {
     }
 
     async fn get_entry(&self, content_type: &str, id: Uuid) -> Result<Option<Entry>> {
-        self.get_doc(entries_pk(content_type), id.to_string()).await?.map(|d| decode(&d)).transpose()
+        self.get_doc(entries_pk(content_type), id.to_string())
+            .await?
+            .map(|d| decode(&d))
+            .transpose()
     }
 
     async fn put_entry(&self, entry: &Entry) -> Result<()> {
-        self.put_doc(entries_pk(&entry.content_type), entry.id.to_string(), encode(entry)?).await
+        self.put_doc(
+            entries_pk(&entry.content_type),
+            entry.id.to_string(),
+            encode(entry)?,
+        )
+        .await
     }
 
     async fn delete_entry(&self, content_type: &str, id: Uuid) -> Result<bool> {
@@ -284,11 +341,15 @@ impl Storage for DynamoDbStorage {
     }
 
     async fn get_setting(&self, key: &str) -> Result<Option<serde_json::Value>> {
-        self.get_doc(SETTINGS_PK.into(), key.into()).await?.map(|d| decode(&d)).transpose()
+        self.get_doc(SETTINGS_PK.into(), key.into())
+            .await?
+            .map(|d| decode(&d))
+            .transpose()
     }
 
     async fn put_setting(&self, key: &str, value: &serde_json::Value) -> Result<()> {
-        self.put_doc(SETTINGS_PK.into(), key.into(), encode(value)?).await
+        self.put_doc(SETTINGS_PK.into(), key.into(), encode(value)?)
+            .await
     }
 
     async fn delete_setting(&self, key: &str) -> Result<bool> {
@@ -312,7 +373,8 @@ impl Storage for DynamoDbStorage {
             .iter()
             .filter_map(|item| {
                 let key = item.get("sk")?.as_s().ok()?;
-                key.starts_with(prefix).then(|| Some((key.clone(), doc_attr(item)?)))?
+                key.starts_with(prefix)
+                    .then(|| Some((key.clone(), doc_attr(item)?)))?
             })
             .map(|(k, d)| Ok((k, decode(&d)?)))
             .collect()

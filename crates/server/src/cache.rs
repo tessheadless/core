@@ -8,8 +8,8 @@
 use axum::http::{HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use tess_cache::{CacheService, Scope};
-use tess_graphql::async_graphql::parser::{parse_query, types::OperationType};
 use tess_graphql::async_graphql::Request;
+use tess_graphql::async_graphql::parser::{parse_query, types::OperationType};
 use tess_graphql::{GraphqlService, Principal};
 
 /// What a request does, from its selected operation(s).
@@ -22,7 +22,9 @@ pub(crate) enum Kind {
 }
 
 pub(crate) fn kind(req: &Request) -> Kind {
-    let Ok(doc) = parse_query(&req.query) else { return Kind::Other };
+    let Ok(doc) = parse_query(&req.query) else {
+        return Kind::Other;
+    };
     let selected: Vec<OperationType> = doc
         .operations
         .iter()
@@ -44,7 +46,10 @@ pub(crate) fn kind(req: &Request) -> Kind {
 fn json(body: Vec<u8>, cache: &'static str) -> Response {
     let mut res = body.into_response();
     let h = res.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/graphql-response+json"));
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/graphql-response+json"),
+    );
     h.insert("x-tess-cache", HeaderValue::from_static(cache));
     res
 }
@@ -57,7 +62,8 @@ pub(crate) async fn execute(
     principal: Principal,
 ) -> Response {
     let Some(cache) = cache else {
-        return async_graphql_axum::GraphQLResponse::from(service.execute(req, principal).await).into_response();
+        return async_graphql_axum::GraphQLResponse::from(service.execute(req, principal).await)
+            .into_response();
     };
     let kind = kind(&req);
     if kind != Kind::Query || !matches!(principal, Principal::Public) {
@@ -72,7 +78,17 @@ pub(crate) async fn execute(
     let variables = serde_json::to_vec(&req.variables).unwrap_or_default();
     let extensions = serde_json::to_vec(&req.extensions).unwrap_or_default();
     let operation = req.operation_name.clone().unwrap_or_default();
-    let lookup = cache.lookup(Scope::Content, &[req.query.as_bytes(), operation.as_bytes(), &variables, &extensions]).await;
+    let lookup = cache
+        .lookup(
+            Scope::Content,
+            &[
+                req.query.as_bytes(),
+                operation.as_bytes(),
+                &variables,
+                &extensions,
+            ],
+        )
+        .await;
     if let Some(body) = lookup.value {
         return json(body, "HIT");
     }
@@ -85,7 +101,9 @@ pub(crate) async fn execute(
         }
     };
     // Errors may be transient: never cached.
-    let Some(key) = lookup.key else { return json(body, "BYPASS") }; // cache unavailable
+    let Some(key) = lookup.key else {
+        return json(body, "BYPASS");
+    }; // cache unavailable
     if res.is_ok() {
         cache.store(&key, &body).await;
     }
@@ -107,10 +125,22 @@ mod tests {
     #[test]
     fn request_kinds() {
         assert_eq!(kind(&req("{ posts { title } }", None)), Kind::Query);
-        assert_eq!(kind(&req("query A { a } query B { b }", Some("B"))), Kind::Query);
-        assert_eq!(kind(&req("mutation { deletePost(id: 1) }", None)), Kind::Mutation);
-        assert_eq!(kind(&req("query A { a } mutation B { b }", Some("A"))), Kind::Query);
-        assert_eq!(kind(&req("query A { a } mutation B { b }", None)), Kind::Mutation);
+        assert_eq!(
+            kind(&req("query A { a } query B { b }", Some("B"))),
+            Kind::Query
+        );
+        assert_eq!(
+            kind(&req("mutation { deletePost(id: 1) }", None)),
+            Kind::Mutation
+        );
+        assert_eq!(
+            kind(&req("query A { a } mutation B { b }", Some("A"))),
+            Kind::Query
+        );
+        assert_eq!(
+            kind(&req("query A { a } mutation B { b }", None)),
+            Kind::Mutation
+        );
         assert_eq!(kind(&req("subscription { s }", None)), Kind::Other);
         assert_eq!(kind(&req("{ broken", None)), Kind::Other);
         assert_eq!(kind(&req("query A { a }", Some("Nope"))), Kind::Other);

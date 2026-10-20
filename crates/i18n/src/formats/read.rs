@@ -40,7 +40,12 @@ impl Collector {
         if !self.keys.contains_key(name) {
             self.order.push(name.to_string());
         }
-        self.keys.entry(name.to_string()).or_insert_with(|| ImportedKey { name: name.to_string(), ..Default::default() })
+        self.keys
+            .entry(name.to_string())
+            .or_insert_with(|| ImportedKey {
+                name: name.to_string(),
+                ..Default::default()
+            })
     }
 
     fn text(&mut self, name: &str, lang: &str, text: String) {
@@ -50,7 +55,11 @@ impl Collector {
     }
 
     fn finish(mut self) -> Vec<ImportedKey> {
-        self.order.iter().filter_map(|n| self.keys.remove(n)).filter(|k| !k.name.is_empty()).collect()
+        self.order
+            .iter()
+            .filter_map(|n| self.keys.remove(n))
+            .filter(|k| !k.name.is_empty())
+            .collect()
     }
 }
 
@@ -60,9 +69,15 @@ pub fn parse(format: Format, content: &str, language: Option<&str>) -> Result<Ve
     let content = content.strip_prefix('\u{feff}').unwrap_or(content);
     let language = language.map(normalize_tag).transpose()?;
     let need_lang = |declared: Option<String>| -> Result<String> {
-        match language.clone().or(declared.map(|d| normalize_tag(&d)).transpose()?) {
+        match language
+            .clone()
+            .or(declared.map(|d| normalize_tag(&d)).transpose()?)
+        {
             Some(l) => Ok(l),
-            None => Err(CmsError::validation(format!("{}: choose the language of the file", format.as_str()))),
+            None => Err(CmsError::validation(format!(
+                "{}: choose the language of the file",
+                format.as_str()
+            ))),
         }
     };
     match format {
@@ -75,7 +90,9 @@ pub fn parse(format: Format, content: &str, language: Option<&str>) -> Result<Ve
         Format::AppleStrings => apple(content, &need_lang(None)?),
         Format::Xliff => xliff(content, language.as_deref()),
         Format::Csv => csv(content),
-        Format::Yaml => Err(CmsError::validation("YAML files can be exported but not imported")),
+        Format::Yaml => Err(CmsError::validation(
+            "YAML files can be exported but not imported",
+        )),
     }
 }
 
@@ -119,9 +136,14 @@ fn json(content: &str, lang: &str, i18next: bool) -> Result<Vec<ImportedKey>> {
     let names: std::collections::HashSet<&str> = pairs.iter().map(|(k, _)| k.as_str()).collect();
     let plural_base = |k: &str| -> Option<(String, String)> {
         let (base, suffix) = k.rsplit_once('_')?;
-        let category = if suffix.chars().all(|c| c.is_ascii_digit()) { format!("={suffix}") } else { suffix.to_string() };
+        let category = if suffix.chars().all(|c| c.is_ascii_digit()) {
+            format!("={suffix}")
+        } else {
+            suffix.to_string()
+        };
         let known = CATEGORIES.contains(&suffix) || category.starts_with('=');
-        (known && names.contains(format!("{base}_other").as_str())).then(|| (base.to_string(), category))
+        (known && names.contains(format!("{base}_other").as_str()))
+            .then(|| (base.to_string(), category))
     };
     let mut plurals: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     for (k, t) in &pairs {
@@ -131,7 +153,10 @@ fn json(content: &str, lang: &str, i18next: bool) -> Result<Vec<ImportedKey>> {
                     c.entry(&base);
                 }
                 let text = t.replace("{{count}}", "#");
-                plurals.entry(base).or_default().push((category, from_double_braces(&text)));
+                plurals
+                    .entry(base)
+                    .or_default()
+                    .push((category, from_double_braces(&text)));
             }
             None => c.text(k, lang, from_double_braces(t)),
         }
@@ -143,7 +168,10 @@ fn json(content: &str, lang: &str, i18next: bool) -> Result<Vec<ImportedKey>> {
     Ok(c.finish())
 }
 
-fn arb(content: &str, need_lang: impl Fn(Option<String>) -> Result<String>) -> Result<Vec<ImportedKey>> {
+fn arb(
+    content: &str,
+    need_lang: impl Fn(Option<String>) -> Result<String>,
+) -> Result<Vec<ImportedKey>> {
     let v: Map<String, Value> = serde_json::from_str(content).map_err(|e| bad(Format::Arb, e))?;
     let lang = need_lang(v.get("@@locale").and_then(Value::as_str).map(String::from))?;
     let mut c = Collector::default();
@@ -153,7 +181,10 @@ fn arb(content: &str, need_lang: impl Fn(Option<String>) -> Result<String>) -> R
         }
         let Some(t) = t.as_str() else { continue };
         c.text(k, &lang, t.to_string());
-        let description = v.get(&format!("@{k}")).and_then(|m| m.get("description")).and_then(Value::as_str);
+        let description = v
+            .get(&format!("@{k}"))
+            .and_then(|m| m.get("description"))
+            .and_then(Value::as_str);
         c.entry(k).description = description.map(String::from);
     }
     Ok(c.finish())
@@ -185,7 +216,10 @@ fn quoted(s: &str) -> Option<String> {
     (s.len() >= 2 && s.starts_with('"') && s.ends_with('"')).then(|| c_unescape(&s[1..s.len() - 1]))
 }
 
-fn po(content: &str, need_lang: impl Fn(Option<String>) -> Result<String>) -> Result<Vec<ImportedKey>> {
+fn po(
+    content: &str,
+    need_lang: impl Fn(Option<String>) -> Result<String>,
+) -> Result<Vec<ImportedKey>> {
     #[derive(Default)]
     struct Unit {
         msgid: Option<String>,
@@ -240,14 +274,21 @@ fn po(content: &str, need_lang: impl Fn(Option<String>) -> Result<String>) -> Re
         }
     }
     flush(&mut cur, &mut units);
-    let header = units.iter().find(|u| u.msgid.as_deref() == Some("")).and_then(|u| u.msgstr.clone());
+    let header = units
+        .iter()
+        .find(|u| u.msgid.as_deref() == Some(""))
+        .and_then(|u| u.msgstr.clone());
     let declared = header.and_then(|h| {
-        h.lines().find_map(|l| l.strip_prefix("Language:").map(|v| v.trim().to_string())).filter(|v| !v.is_empty())
+        h.lines()
+            .find_map(|l| l.strip_prefix("Language:").map(|v| v.trim().to_string()))
+            .filter(|v| !v.is_empty())
     });
     let lang = need_lang(declared)?;
     let mut c = Collector::default();
     for u in units {
-        let (Some(id), Some(text)) = (u.msgid, u.msgstr) else { continue };
+        let (Some(id), Some(text)) = (u.msgid, u.msgstr) else {
+            continue;
+        };
         if id.is_empty() || text.is_empty() {
             continue;
         }
@@ -297,7 +338,8 @@ fn properties(content: &str, lang: &str) -> Result<Vec<ImportedKey>> {
     let mut comment: Vec<String> = vec![];
     for raw in content.lines() {
         let line = raw.trim_start();
-        if logical.is_empty() && (line.is_empty() || line.starts_with('#') || line.starts_with('!')) {
+        if logical.is_empty() && (line.is_empty() || line.starts_with('#') || line.starts_with('!'))
+        {
             if let Some(cm) = line.strip_prefix('#').or_else(|| line.strip_prefix('!')) {
                 comment.push(cm.trim().to_string());
             } else {
@@ -343,9 +385,11 @@ fn properties(content: &str, lang: &str) -> Result<Vec<ImportedKey>> {
     Ok(c.finish())
 }
 
-static APPLE_ENTRY: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?s)"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"\s*;"#).unwrap());
-static APPLE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/|(?m)^\s*//.*$").unwrap());
+static APPLE_ENTRY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"\s*;"#).unwrap()
+});
+static APPLE_COMMENT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)/\*.*?\*/|(?m)^\s*//.*$").unwrap());
 
 fn apple(content: &str, lang: &str) -> Result<Vec<ImportedKey>> {
     let clean = APPLE_COMMENT.replace_all(content, "");
@@ -360,7 +404,9 @@ fn apple(content: &str, lang: &str) -> Result<Vec<ImportedKey>> {
 
 fn attr(e: &BytesStart, name: &str) -> Option<String> {
     let a = e.try_get_attribute(name).ok().flatten()?;
-    a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok().map(|v| v.into_owned())
+    a.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+        .ok()
+        .map(|v| v.into_owned())
 }
 
 fn resolve_ref(r: &BytesRef) -> String {
@@ -368,11 +414,17 @@ fn resolve_ref(r: &BytesRef) -> String {
         return c.to_string();
     }
     let name = r.xml10_content();
-    quick_xml::escape::resolve_predefined_entity(&name).map(String::from).unwrap_or_else(|| format!("&{name};"))
+    quick_xml::escape::resolve_predefined_entity(&name)
+        .map(String::from)
+        .unwrap_or_else(|| format!("&{name};"))
 }
 
 /// Text and references go to `sink` while `capture` is on.
-fn xml_events(format: Format, content: &str, mut on: impl FnMut(XmlEvent) -> Result<()>) -> Result<()> {
+fn xml_events(
+    format: Format,
+    content: &str,
+    mut on: impl FnMut(XmlEvent) -> Result<()>,
+) -> Result<()> {
     let mut reader = quick_xml::Reader::from_str(content);
     loop {
         match reader.read_event().map_err(|e| bad(format, e))? {
@@ -403,7 +455,11 @@ fn local(name: &str) -> &str {
 
 fn android_unescape(s: &str) -> String {
     let s = s.trim();
-    let s = if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') { &s[1..s.len() - 1] } else { s };
+    let s = if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
     c_unescape(s)
 }
 
@@ -440,7 +496,9 @@ fn android(content: &str, lang: &str) -> Result<Vec<ImportedKey>> {
                     }
                 }
                 "item" if depth_in_value == 0 => {
-                    if let (Some((_, Some(q))), Some((_, forms))) = (current.take(), plural.as_mut()) {
+                    if let (Some((_, Some(q))), Some((_, forms))) =
+                        (current.take(), plural.as_mut())
+                    {
                         forms.push((q, android_unescape(&text).replace("%d", "#")));
                     }
                 }
@@ -481,7 +539,9 @@ fn xliff(content: &str, language: Option<&str>) -> Result<Vec<ImportedKey>> {
                     tgt_lang = attr(&e, "target-language").or(tgt_lang.take());
                 }
                 "trans-unit" | "unit" => {
-                    unit = attr(&e, "resname").or_else(|| attr(&e, "name")).or_else(|| attr(&e, "id"));
+                    unit = attr(&e, "resname")
+                        .or_else(|| attr(&e, "name"))
+                        .or_else(|| attr(&e, "id"));
                     (source, target, note) = (String::new(), None, None);
                 }
                 "source" if unit.is_some() => field = Some("source"),
@@ -515,7 +575,9 @@ fn xliff(content: &str, language: Option<&str>) -> Result<Vec<ImportedKey>> {
                         match (&tgt, target.take().filter(|t| !t.is_empty())) {
                             (Some(l), Some(t)) => c.text(&name, &normalize_tag(l)?, t),
                             (None, Some(_)) => {
-                                return Err(CmsError::validation("XLIFF: the file has no target-language; choose one"));
+                                return Err(CmsError::validation(
+                                    "XLIFF: the file has no target-language; choose one",
+                                ));
                             }
                             _ => {}
                         }
@@ -580,9 +642,16 @@ fn csv_rows(content: &str) -> Result<Vec<Vec<String>>> {
 
 fn csv(content: &str) -> Result<Vec<ImportedKey>> {
     let rows = csv_rows(content)?;
-    let Some((header, body)) = rows.split_first() else { return Ok(vec![]) };
-    let col = |name: &str| header.iter().position(|h| h.trim().eq_ignore_ascii_case(name));
-    let key_col = col("key").ok_or_else(|| bad(Format::Csv, "the first row must name a `key` column"))?;
+    let Some((header, body)) = rows.split_first() else {
+        return Ok(vec![]);
+    };
+    let col = |name: &str| {
+        header
+            .iter()
+            .position(|h| h.trim().eq_ignore_ascii_case(name))
+    };
+    let key_col =
+        col("key").ok_or_else(|| bad(Format::Csv, "the first row must name a `key` column"))?;
     let desc_col = col("description");
     let skip = ["key", "description", "namespace", "tags"];
     let langs: Vec<(usize, String)> = header
@@ -593,8 +662,13 @@ fn csv(content: &str) -> Result<Vec<ImportedKey>> {
         .collect::<Result<_>>()?;
     let mut c = Collector::default();
     for row in body {
-        let Some(name) = row.get(key_col).filter(|k| !k.is_empty()) else { continue };
-        c.entry(name).description = desc_col.and_then(|i| row.get(i)).filter(|d| !d.is_empty()).cloned();
+        let Some(name) = row.get(key_col).filter(|k| !k.is_empty()) else {
+            continue;
+        };
+        c.entry(name).description = desc_col
+            .and_then(|i| row.get(i))
+            .filter(|d| !d.is_empty())
+            .cloned();
         for (i, lang) in &langs {
             if let Some(t) = row.get(*i).filter(|t| !t.is_empty()) {
                 c.text(name, lang, t.clone());

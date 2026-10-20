@@ -20,7 +20,9 @@ pub fn parse_plural(text: &str) -> Option<Plural> {
     let inner = text.trim().strip_prefix('{')?.strip_suffix('}')?;
     let mut parts = inner.splitn(3, ',');
     let variable = parts.next()?.trim();
-    if parts.next()?.trim() != "plural" || variable.is_empty() || !variable.chars().all(|c| c.is_alphanumeric() || c == '_')
+    if parts.next()?.trim() != "plural"
+        || variable.is_empty()
+        || !variable.chars().all(|c| c.is_alphanumeric() || c == '_')
     {
         return None;
     }
@@ -51,7 +53,10 @@ pub fn parse_plural(text: &str) -> Option<Plural> {
         forms.push((category.to_string(), rest[open + 1..end].to_string()));
         rest = rest[end + 1..].trim_start();
     }
-    forms.iter().any(|(c, _)| c == "other").then(|| Plural { variable: variable.to_string(), forms })
+    forms.iter().any(|(c, _)| c == "other").then(|| Plural {
+        variable: variable.to_string(),
+        forms,
+    })
 }
 
 pub fn format_plural(variable: &str, forms: &[(String, String)]) -> String {
@@ -79,7 +84,8 @@ fn closing(text: &str, open: usize) -> Option<usize> {
 
 fn is_identifier(s: &str) -> bool {
     let mut chars = s.chars();
-    chars.next().is_some_and(|c| c.is_alphabetic() || c == '_') && chars.all(|c| c.is_alphanumeric() || c == '_')
+    chars.next().is_some_and(|c| c.is_alphabetic() || c == '_')
+        && chars.all(|c| c.is_alphanumeric() || c == '_')
 }
 
 /// `{name}` → `{{name}}` for i18next. Only simple arguments change: the
@@ -147,17 +153,35 @@ mod tests {
     fn plurals() {
         let p = parse_plural("{count, plural, one {# item} other {# items in {place}}}").unwrap();
         assert_eq!(p.variable, "count");
-        assert_eq!(p.forms, vec![("one".into(), "# item".into()), ("other".into(), "# items in {place}".into())]);
-        assert_eq!(format_plural(&p.variable, &p.forms), "{count, plural, one {# item} other {# items in {place}}}");
+        assert_eq!(
+            p.forms,
+            vec![
+                ("one".into(), "# item".into()),
+                ("other".into(), "# items in {place}".into())
+            ]
+        );
+        assert_eq!(
+            format_plural(&p.variable, &p.forms),
+            "{count, plural, one {# item} other {# items in {place}}}"
+        );
         assert!(parse_plural("Hello {name}").is_none());
-        assert!(parse_plural("{n, plural, one {x}}").is_none(), "other is mandatory");
+        assert!(
+            parse_plural("{n, plural, one {x}}").is_none(),
+            "other is mandatory"
+        );
         assert!(parse_plural("{n, select, a {x} other {y}}").is_none());
-        assert_eq!(to_double_braces("Hi {name}, {n, plural, one {x}}"), "Hi {{name}}, {n, plural, one {x}}");
+        assert_eq!(
+            to_double_braces("Hi {name}, {n, plural, one {x}}"),
+            "Hi {{name}}, {n, plural, one {x}}"
+        );
         assert_eq!(
             to_double_braces("{g, select, male {He met {who}} other {They met {who}}}"),
             "{g, select, male {He met {{who}}} other {They met {{who}}}}"
         );
-        assert_eq!(to_double_braces("{n, number} {broken"), "{n, number} {broken");
+        assert_eq!(
+            to_double_braces("{n, number} {broken"),
+            "{n, number} {broken"
+        );
         assert_eq!(from_double_braces("Hi {{ name }}"), "Hi {name}");
     }
 }

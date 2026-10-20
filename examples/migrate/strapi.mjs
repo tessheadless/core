@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+// SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+// Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
 // Copies media and entries from Strapi 5 to Tess (models must exist in Tess).
 //
 //   STRAPI_URL=https://strapi.example.com STRAPI_TOKEN=… \

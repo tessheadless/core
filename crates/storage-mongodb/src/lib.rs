@@ -7,14 +7,14 @@
 //! [`Entry::view`]), so filters and sorting are pushed down to MongoDB.
 
 use async_trait::async_trait;
-use tess_core::model::format_ts;
-use tess_core::query::{Direction, Filter, Op};
-use tess_core::{CmsError, ContentType, Entry, EntryQuery, Page, Result, Stage, Storage};
 use futures::TryStreamExt;
 use mongodb::bson::{self, Bson, Document, doc};
 use mongodb::options::IndexOptions;
 use mongodb::{Client, Collection, Database, IndexModel};
 use serde_json::{Map, Value};
+use tess_core::model::format_ts;
+use tess_core::query::{Direction, Filter, Op};
+use tess_core::{CmsError, ContentType, Entry, EntryQuery, Page, Result, Stage, Storage};
 use uuid::Uuid;
 
 pub struct MongoStorage {
@@ -24,7 +24,9 @@ pub struct MongoStorage {
 impl MongoStorage {
     pub async fn connect(url: &str, database: &str) -> Result<Self> {
         let client = Client::with_uri_str(url).await.map_err(CmsError::storage)?;
-        Ok(MongoStorage { db: client.database(database) })
+        Ok(MongoStorage {
+            db: client.database(database),
+        })
     }
 
     fn content_types(&self) -> Collection<Document> {
@@ -83,8 +85,15 @@ fn doc_to_entry(mut d: Document) -> Result<Entry> {
     };
     let draft = view("draft").ok_or_else(|| bad("draft"))?;
     let published = view("published");
-    let id = d.get_str("_id").ok().and_then(|s| Uuid::parse_str(s).ok()).ok_or_else(|| bad("_id"))?;
-    let content_type = d.get_str("contentType").map_err(|_| bad("contentType"))?.to_string();
+    let id = d
+        .get_str("_id")
+        .ok()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| bad("_id"))?;
+    let content_type = d
+        .get_str("contentType")
+        .map_err(|_| bad("contentType"))?
+        .to_string();
     Entry::from_views(content_type, id, draft, published).map_err(CmsError::Storage)
 }
 
@@ -98,8 +107,12 @@ fn translate(filter: &Filter, stage: &str) -> Result<Document> {
         // An empty $and/$or is rejected by MongoDB.
         Filter::And(fs) if fs.is_empty() => doc! {},
         Filter::Or(fs) if fs.is_empty() => doc! { "_id": { "$exists": false } },
-        Filter::And(fs) => doc! { "$and": fs.iter().map(|f| translate(f, stage)).collect::<Result<Vec<_>>>()? },
-        Filter::Or(fs) => doc! { "$or": fs.iter().map(|f| translate(f, stage)).collect::<Result<Vec<_>>>()? },
+        Filter::And(fs) => {
+            doc! { "$and": fs.iter().map(|f| translate(f, stage)).collect::<Result<Vec<_>>>()? }
+        }
+        Filter::Or(fs) => {
+            doc! { "$or": fs.iter().map(|f| translate(f, stage)).collect::<Result<Vec<_>>>()? }
+        }
         Filter::Not(f) => doc! { "$nor": [translate(f, stage)?] },
         Filter::Cmp { field, op, value } => {
             let path = format!("{stage}.{field}");
@@ -113,7 +126,11 @@ fn translate(filter: &Filter, stage: &str) -> Result<Document> {
                 Op::Gte => doc! { "$gte": v },
                 Op::In | Op::NotIn if !value.is_array() => {
                     let none = doc! { "_id": { "$exists": false } };
-                    return Ok(if *op == Op::In { none } else { doc! { "$nor": [none] } });
+                    return Ok(if *op == Op::In {
+                        none
+                    } else {
+                        doc! { "$nor": [none] }
+                    });
                 }
                 Op::In => doc! { "$in": v },
                 Op::NotIn => doc! { "$nin": v },
@@ -158,9 +175,16 @@ impl Storage for MongoStorage {
     async fn migrate(&self) -> Result<()> {
         let index = IndexModel::builder()
             .keys(doc! { "contentType": 1, "draft.createdAt": 1 })
-            .options(IndexOptions::builder().name("content_type_created".to_string()).build())
+            .options(
+                IndexOptions::builder()
+                    .name("content_type_created".to_string())
+                    .build(),
+            )
             .build();
-        self.entries().create_index(index).await.map_err(CmsError::storage)?;
+        self.entries()
+            .create_index(index)
+            .await
+            .map_err(CmsError::storage)?;
         Ok(())
     }
 
@@ -243,7 +267,11 @@ impl Storage for MongoStorage {
         let stage = stage_key(query.stage);
         let mut sort = Document::new();
         for key in query.effective_sort() {
-            let dir = if key.direction == Direction::Asc { 1 } else { -1 };
+            let dir = if key.direction == Direction::Asc {
+                1
+            } else {
+                -1
+            };
             sort.insert(format!("{stage}.{}", key.field), dir);
         }
         let total = self
@@ -262,16 +290,26 @@ impl Storage for MongoStorage {
             .try_collect()
             .await
             .map_err(CmsError::storage)?;
-        let items = docs.into_iter().map(doc_to_entry).collect::<Result<Vec<_>>>()?;
+        let items = docs
+            .into_iter()
+            .map(doc_to_entry)
+            .collect::<Result<Vec<_>>>()?;
         Ok(Page { items, total })
     }
 
     // Settings are stored as JSON strings: values are opaque to queries and
     // this preserves them exactly.
     async fn get_setting(&self, key: &str) -> Result<Option<Value>> {
-        let doc = self.settings().find_one(doc! { "_id": key }).await.map_err(CmsError::storage)?;
-        doc.map(|d| serde_json::from_str(d.get_str("value").map_err(CmsError::storage)?).map_err(CmsError::storage))
-            .transpose()
+        let doc = self
+            .settings()
+            .find_one(doc! { "_id": key })
+            .await
+            .map_err(CmsError::storage)?;
+        doc.map(|d| {
+            serde_json::from_str(d.get_str("value").map_err(CmsError::storage)?)
+                .map_err(CmsError::storage)
+        })
+        .transpose()
     }
 
     async fn put_setting(&self, key: &str, value: &Value) -> Result<()> {
@@ -285,7 +323,11 @@ impl Storage for MongoStorage {
     }
 
     async fn delete_setting(&self, key: &str) -> Result<bool> {
-        let res = self.settings().delete_one(doc! { "_id": key }).await.map_err(CmsError::storage)?;
+        let res = self
+            .settings()
+            .delete_one(doc! { "_id": key })
+            .await
+            .map_err(CmsError::storage)?;
         Ok(res.deleted_count > 0)
     }
 
@@ -329,7 +371,9 @@ mod tests {
             eprintln!("TESS_TEST_MONGODB_URL not set, skipping");
             return;
         };
-        let storage = MongoStorage::connect(&url, "tess_conformance").await.unwrap();
+        let storage = MongoStorage::connect(&url, "tess_conformance")
+            .await
+            .unwrap();
         tess_core::testkit::run_conformance(Arc::new(storage)).await;
     }
 }

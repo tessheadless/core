@@ -16,9 +16,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use rocksdb::{DB, Direction, IteratorMode, Options, WriteBatch};
 use tess_core::query::execute_in_memory;
 use tess_core::{CmsError, ContentType, Entry, EntryQuery, Page, Result, Storage};
-use rocksdb::{DB, Direction, IteratorMode, Options, WriteBatch};
 use uuid::Uuid;
 
 pub struct RocksDbStorage {
@@ -40,7 +40,9 @@ impl RocksDbStorage {
         F: FnOnce(&DB) -> Result<T> + Send + 'static,
     {
         let db = self.db.clone();
-        tokio::task::spawn_blocking(move || f(&db)).await.map_err(CmsError::storage)?
+        tokio::task::spawn_blocking(move || f(&db))
+            .await
+            .map_err(CmsError::storage)?
     }
 }
 
@@ -90,14 +92,22 @@ impl Storage for RocksDbStorage {
     }
 
     async fn list_content_types(&self) -> Result<Vec<ContentType>> {
-        self.blocking(|db| scan_prefix(db, b"ct\0")?.iter().map(|(_, v)| decode(v)).collect())
-            .await
+        self.blocking(|db| {
+            scan_prefix(db, b"ct\0")?
+                .iter()
+                .map(|(_, v)| decode(v))
+                .collect()
+        })
+        .await
     }
 
     async fn get_content_type(&self, api_id: &str) -> Result<Option<ContentType>> {
         let key = ct_key(api_id);
         self.blocking(move |db| {
-            db.get_pinned(key).map_err(CmsError::storage)?.map(|v| decode(&v)).transpose()
+            db.get_pinned(key)
+                .map_err(CmsError::storage)?
+                .map(|v| decode(&v))
+                .transpose()
         })
         .await
     }
@@ -105,7 +115,8 @@ impl Storage for RocksDbStorage {
     async fn put_content_type(&self, content_type: &ContentType) -> Result<()> {
         let key = ct_key(&content_type.api_id);
         let value = encode(content_type)?;
-        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage)).await
+        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage))
+            .await
     }
 
     async fn delete_content_type(&self, api_id: &str) -> Result<()> {
@@ -125,7 +136,10 @@ impl Storage for RocksDbStorage {
     async fn get_entry(&self, content_type: &str, id: Uuid) -> Result<Option<Entry>> {
         let key = entry_key(content_type, id);
         self.blocking(move |db| {
-            db.get_pinned(key).map_err(CmsError::storage)?.map(|v| decode(&v)).transpose()
+            db.get_pinned(key)
+                .map_err(CmsError::storage)?
+                .map(|v| decode(&v))
+                .transpose()
         })
         .await
     }
@@ -133,7 +147,8 @@ impl Storage for RocksDbStorage {
     async fn put_entry(&self, entry: &Entry) -> Result<()> {
         let key = entry_key(&entry.content_type, entry.id);
         let value = encode(entry)?;
-        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage)).await
+        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage))
+            .await
     }
 
     async fn delete_entry(&self, content_type: &str, id: Uuid) -> Result<bool> {
@@ -162,7 +177,10 @@ impl Storage for RocksDbStorage {
     async fn get_setting(&self, key: &str) -> Result<Option<serde_json::Value>> {
         let key = setting_key(key);
         self.blocking(move |db| {
-            db.get_pinned(key).map_err(CmsError::storage)?.map(|v| decode(&v)).transpose()
+            db.get_pinned(key)
+                .map_err(CmsError::storage)?
+                .map(|v| decode(&v))
+                .transpose()
         })
         .await
     }
@@ -170,7 +188,8 @@ impl Storage for RocksDbStorage {
     async fn put_setting(&self, key: &str, value: &serde_json::Value) -> Result<()> {
         let key = setting_key(key);
         let value = encode(value)?;
-        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage)).await
+        self.blocking(move |db| db.put(key, value).map_err(CmsError::storage))
+            .await
     }
 
     async fn delete_setting(&self, key: &str) -> Result<bool> {

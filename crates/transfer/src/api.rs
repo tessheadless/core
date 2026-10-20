@@ -25,8 +25,14 @@ pub struct RemoteUser {
 
 impl Client {
     pub fn new(url: &str, token: String) -> Result<Self> {
-        let http = reqwest::Client::builder().timeout(std::time::Duration::from_secs(60)).build()?;
-        Ok(Client { http, endpoint: format!("{}/graphql", url.trim_end_matches('/')), token })
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()?;
+        Ok(Client {
+            http,
+            endpoint: format!("{}/graphql", url.trim_end_matches('/')),
+            token,
+        })
     }
 
     async fn gql(&self, query: &str, variables: Value) -> Result<Value> {
@@ -45,8 +51,14 @@ impl Client {
         }
         let mut body: Value = res.json().await.context("invalid response")?;
         if let Some(err) = body.get("errors").and_then(|e| e.get(0)) {
-            let code = err.pointer("/extensions/code").and_then(Value::as_str).unwrap_or("ERROR");
-            let message = err.get("message").and_then(Value::as_str).unwrap_or("unknown error");
+            let code = err
+                .pointer("/extensions/code")
+                .and_then(Value::as_str)
+                .unwrap_or("ERROR");
+            let message = err
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown error");
             bail!("{code}: {message}");
         }
         Ok(body["data"].take())
@@ -73,17 +85,25 @@ impl Client {
     }
 
     pub async fn models(&self) -> Result<Vec<ModelDef>> {
-        let q = format!("{{ contentTypes {{ apiId pluralApiId description workflow {FIELD_FIELDS} }} }}");
+        let q = format!(
+            "{{ contentTypes {{ apiId pluralApiId description workflow {FIELD_FIELDS} }} }}"
+        );
         let mut data = self.gql(&q, json!({})).await?;
         let items: Vec<Value> = serde_json::from_value(data["contentTypes"].take())?;
-        Self::normalize_remote(items).into_iter().map(|m| Ok(serde_json::from_value(m)?)).collect()
+        Self::normalize_remote(items)
+            .into_iter()
+            .map(|m| Ok(serde_json::from_value(m)?))
+            .collect()
     }
 
     pub async fn components(&self) -> Result<Vec<ComponentDoc>> {
         let q = format!("{{ components {{ apiId description {FIELD_FIELDS} }} }}");
         let mut data = self.gql(&q, json!({})).await?;
         let items: Vec<Value> = serde_json::from_value(data["components"].take())?;
-        Self::normalize_remote(items).into_iter().map(|c| Ok(serde_json::from_value(c)?)).collect()
+        Self::normalize_remote(items)
+            .into_iter()
+            .map(|c| Ok(serde_json::from_value(c)?))
+            .collect()
     }
 
     pub async fn create_component(&self, c: &ComponentDoc) -> Result<()> {
@@ -136,14 +156,19 @@ impl Client {
     }
 
     pub async fn users(&self) -> Result<Vec<RemoteUser>> {
-        let mut data = self.gql("{ users { id email name role scope disabled } }", json!({})).await?;
+        let mut data = self
+            .gql("{ users { id email name role scope disabled } }", json!({}))
+            .await?;
         let users: Vec<Value> = serde_json::from_value(data["users"].take())?;
         users
             .into_iter()
             .map(|mut u| {
                 let id = u["id"].as_str().unwrap_or_default().to_string();
                 u.as_object_mut().map(|o| o.remove("id"));
-                Ok(RemoteUser { id, def: serde_json::from_value(u)? })
+                Ok(RemoteUser {
+                    id,
+                    def: serde_json::from_value(u)?,
+                })
             })
             .collect()
     }
@@ -178,7 +203,9 @@ impl Client {
     }
 
     fn display_name(u: &UserDef) -> String {
-        u.name.clone().unwrap_or_else(|| u.email.split('@').next().unwrap_or("user").to_string())
+        u.name
+            .clone()
+            .unwrap_or_else(|| u.email.split('@').next().unwrap_or("user").to_string())
     }
 
     pub async fn create_user(&self, u: &UserDef, password: &str) -> Result<()> {

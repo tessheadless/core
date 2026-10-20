@@ -36,7 +36,13 @@ pub enum Role {
 }
 
 impl Role {
-    pub const ALL: [Role; 5] = [Role::Owner, Role::Admin, Role::Contributor, Role::Reviewer, Role::Member];
+    pub const ALL: [Role; 5] = [
+        Role::Owner,
+        Role::Admin,
+        Role::Contributor,
+        Role::Reviewer,
+        Role::Member,
+    ];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -83,19 +89,33 @@ fn forbidden(msg: impl Into<String>) -> CmsError {
 impl Actor {
     /// Full access, for the bootstrap admin token and internal jobs.
     pub fn system() -> Self {
-        Actor { id: None, name: "system".into(), role: Role::Owner, scope: vec![] }
+        Actor {
+            id: None,
+            name: "system".into(),
+            role: Role::Owner,
+            scope: vec![],
+        }
     }
 
     pub fn reference(&self) -> ActorRef {
-        ActorRef { id: self.id, name: self.name.clone() }
+        ActorRef {
+            id: self.id,
+            name: self.name.clone(),
+        }
     }
 
     pub fn in_scope(&self, content_type: &str) -> bool {
-        self.role.is_admin() || self.scope.is_empty() || self.scope.iter().any(|s| s == content_type)
+        self.role.is_admin()
+            || self.scope.is_empty()
+            || self.scope.iter().any(|s| s == content_type)
     }
 
     pub fn require_admin(&self) -> Result<()> {
-        if self.role.is_admin() { Ok(()) } else { Err(forbidden("requires the Admin role")) }
+        if self.role.is_admin() {
+            Ok(())
+        } else {
+            Err(forbidden("requires the Admin role"))
+        }
     }
 
     /// Create and edit drafts, submit for review.
@@ -104,7 +124,10 @@ impl Actor {
         if role_ok && self.in_scope(&ct.api_id) {
             Ok(())
         } else {
-            Err(forbidden(format!("you cannot edit `{}` entries", ct.api_id)))
+            Err(forbidden(format!(
+                "you cannot edit `{}` entries",
+                ct.api_id
+            )))
         }
     }
 
@@ -114,7 +137,10 @@ impl Actor {
             return Ok(());
         }
         if ct.workflow {
-            return Err(forbidden(format!("`{}` requires review: submit it for review instead", ct.api_id)));
+            return Err(forbidden(format!(
+                "`{}` requires review: submit it for review instead",
+                ct.api_id
+            )));
         }
         self.require_edit(ct)
     }
@@ -125,7 +151,10 @@ impl Actor {
         if role_ok && self.in_scope(&ct.api_id) {
             Ok(())
         } else {
-            Err(forbidden(format!("you cannot review `{}` entries", ct.api_id)))
+            Err(forbidden(format!(
+                "you cannot review `{}` entries",
+                ct.api_id
+            )))
         }
     }
 
@@ -137,7 +166,9 @@ impl Actor {
         }
         self.require_edit(ct)?;
         if entry.published.is_some() {
-            return Err(forbidden("published entries can only be deleted by an Admin"));
+            return Err(forbidden(
+                "published entries can only be deleted by an Admin",
+            ));
         }
         Ok(())
     }

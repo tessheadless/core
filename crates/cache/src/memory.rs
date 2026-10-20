@@ -70,7 +70,13 @@ impl CacheStore for MemoryStore {
     }
 
     async fn counter(&self, key: &str) -> Result<u64> {
-        Ok(self.counters.lock().expect("cache lock").get(key).copied().unwrap_or(0))
+        Ok(self
+            .counters
+            .lock()
+            .expect("cache lock")
+            .get(key)
+            .copied()
+            .unwrap_or(0))
     }
 
     async fn increment(&self, key: &str) -> Result<u64> {
@@ -82,7 +88,9 @@ impl CacheStore for MemoryStore {
 
     async fn publish(&self, channel: &str, message: &str) -> Result<()> {
         // No receiver is fine.
-        let _ = self.messages.send((channel.to_string(), message.to_string()));
+        let _ = self
+            .messages
+            .send((channel.to_string(), message.to_string()));
         Ok(())
     }
 

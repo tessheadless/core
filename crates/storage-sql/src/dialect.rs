@@ -32,7 +32,11 @@ pub(crate) struct Frag {
 
 impl Frag {
     pub fn new(dialect: Dialect) -> Self {
-        Frag { dialect, sql: String::new(), values: Vec::new() }
+        Frag {
+            dialect,
+            sql: String::new(),
+            values: Vec::new(),
+        }
     }
 
     pub fn push(&mut self, sql: &str) -> &mut Self {
@@ -178,10 +182,14 @@ impl Dialect {
     pub(crate) fn bind_text(self, f: &mut Frag, s: &str) {
         match self {
             Dialect::Postgres => {
-                f.push("(CAST(").bind(s.to_string()).push(" AS text) COLLATE \"C\")");
+                f.push("(CAST(")
+                    .bind(s.to_string())
+                    .push(" AS text) COLLATE \"C\")");
             }
             Dialect::MySql => {
-                f.push("(CONVERT(").bind(s.to_string()).push(" USING utf8mb4) COLLATE utf8mb4_bin)");
+                f.push("(CONVERT(")
+                    .bind(s.to_string())
+                    .push(" USING utf8mb4) COLLATE utf8mb4_bin)");
             }
             Dialect::Sqlite => {
                 f.bind(s.to_string());

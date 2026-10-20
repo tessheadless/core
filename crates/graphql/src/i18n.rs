@@ -8,12 +8,15 @@
 
 use std::sync::Arc;
 
-use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputObject, InputValue, ResolverContext, TypeRef};
+use async_graphql::dynamic::{
+    Field, FieldFuture, FieldValue, InputObject, InputValue, ResolverContext, TypeRef,
+};
 use serde_json::{Value, json};
 use tess_core::CmsError;
 use tess_i18n::{
-    AzureAuth, DeliveryInput, DeliveryTarget, DeliveryUpdate, ExportOptions, Format, I18nService, I18nSettings,
-    ImportInput, ImportMode, KeyFilter, KeyInput, KeyUpdate, StorageKind, TranslationKey, TranslationState,
+    AzureAuth, DeliveryInput, DeliveryTarget, DeliveryUpdate, ExportOptions, Format, I18nService,
+    I18nSettings, ImportInput, ImportMode, KeyFilter, KeyInput, KeyUpdate, StorageKind,
+    TranslationKey, TranslationState,
 };
 
 use crate::jsonobj::{enum_type, enumerated, json_object, object, plain, value, values};
@@ -59,7 +62,11 @@ fn b(v: &Value, k: &str) -> Option<bool> {
 }
 
 fn list(v: &Value, k: &str) -> Option<Vec<String>> {
-    v.get(k)?.as_array().map(|xs| xs.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+    v.get(k)?.as_array().map(|xs| {
+        xs.iter()
+            .filter_map(|x| x.as_str().map(String::from))
+            .collect()
+    })
 }
 
 /// Present key: `Some(None)` for an explicit null.
@@ -68,17 +75,27 @@ fn nullable(v: &Value, k: &str) -> Option<Option<String>> {
 }
 
 fn format_of(v: &Value, k: &str) -> GqlResult<Option<Format>> {
-    s(v, k).map(|f| Format::parse(&f).ok_or_else(|| bad(format!("unknown format `{f}`")))).transpose()
+    s(v, k)
+        .map(|f| Format::parse(&f).ok_or_else(|| bad(format!("unknown format `{f}`"))))
+        .transpose()
 }
 
 fn formats_of(v: &Value, k: &str) -> GqlResult<Option<Vec<Format>>> {
     list(v, k)
-        .map(|xs| xs.iter().map(|f| Format::parse(f).ok_or_else(|| bad(format!("unknown format `{f}`")))).collect())
+        .map(|xs| {
+            xs.iter()
+                .map(|f| Format::parse(f).ok_or_else(|| bad(format!("unknown format `{f}`"))))
+                .collect()
+        })
         .transpose()
 }
 
 fn states_of(v: &Value, k: &str) -> Option<Vec<TranslationState>> {
-    list(v, k).map(|xs| xs.iter().filter_map(|x| TranslationState::parse(x)).collect())
+    list(v, k).map(|xs| {
+        xs.iter()
+            .filter_map(|x| TranslationState::parse(x))
+            .collect()
+    })
 }
 
 fn kind_of(v: &Value) -> Option<StorageKind> {
@@ -126,7 +143,9 @@ fn types() -> Vec<TypeDef> {
             "TranslationKey",
             "A translatable message, e.g. `home.title`.",
             vec![
-                plain("id", nn(T::ID)).doc("Derived from the namespace and name: it changes when the key is renamed."),
+                plain("id", nn(T::ID)).doc(
+                    "Derived from the namespace and name: it changes when the key is renamed.",
+                ),
                 plain("name", nn(T::STRING)),
                 plain("namespace", nn(T::STRING)).doc("`\"\"` is the default namespace."),
                 plain("description", T::named(T::STRING)).doc("Context for translators."),
@@ -140,7 +159,10 @@ fn types() -> Vec<TypeDef> {
         json_object(
             "TranslationKeyConnection",
             "A page of keys.",
-            vec![object("items", T::named_nn_list_nn("TranslationKey")), plain("total", nn(T::INT))],
+            vec![
+                object("items", T::named_nn_list_nn("TranslationKey")),
+                plain("total", nn(T::INT)),
+            ],
         ),
         json_object(
             "TranslationLanguageStats",
@@ -155,7 +177,11 @@ fn types() -> Vec<TypeDef> {
         json_object(
             "TranslationFile",
             "An exported file.",
-            vec![plain("path", nn(T::STRING)), plain("contentType", nn(T::STRING)), plain("content", nn(T::STRING))],
+            vec![
+                plain("path", nn(T::STRING)),
+                plain("contentType", nn(T::STRING)),
+                plain("content", nn(T::STRING)),
+            ],
         ),
         json_object(
             "TranslationFormatInfo",
@@ -197,13 +223,16 @@ fn types() -> Vec<TypeDef> {
                 plain("name", nn(T::STRING)),
                 plain("enabled", nn(T::BOOLEAN)),
                 enumerated("kind", nn("TranslationStorageKind")),
-                plain("provider", nn(T::STRING)).doc("UI preset: garage, aws, r2, minio, azure, other."),
+                plain("provider", nn(T::STRING))
+                    .doc("UI preset: garage, aws, r2, minio, azure, other."),
                 plain("bucket", nn(T::STRING)).doc("S3 bucket or Azure container."),
                 plain("endpoint", T::named(T::STRING)),
                 plain("region", T::named(T::STRING)),
                 plain("forcePathStyle", nn(T::BOOLEAN)),
-                plain("accessKeyId", T::named(T::STRING)).doc("S3 access key id, or Azure account name."),
-                plain("hasSecret", nn(T::BOOLEAN)).doc("Whether a secret key / SAS token is stored (never returned)."),
+                plain("accessKeyId", T::named(T::STRING))
+                    .doc("S3 access key id, or Azure account name."),
+                plain("hasSecret", nn(T::BOOLEAN))
+                    .doc("Whether a secret key / SAS token is stored (never returned)."),
                 enumerated("azureAuth", nn("TranslationAzureAuth")),
                 plain("pathPrefix", nn(T::STRING)),
                 plain("publicUrl", T::named(T::STRING)),
@@ -235,7 +264,10 @@ fn types() -> Vec<TypeDef> {
     ];
     let enums = vec![
         enum_type("TranslationState", ["TRANSLATED", "REVIEWED"]),
-        enum_type("TranslationStateFilter", ["UNTRANSLATED", "TRANSLATED", "REVIEWED"]),
+        enum_type(
+            "TranslationStateFilter",
+            ["UNTRANSLATED", "TRANSLATED", "REVIEWED"],
+        ),
         enum_type("TranslationFormat", Format::ALL.map(Format::as_str)),
         enum_type("TranslationImportMode", ["KEEP", "OVERRIDE"]),
         enum_type("TranslationStorageKind", ["S3", "AZURE_BLOB"]),
@@ -251,7 +283,10 @@ fn types() -> Vec<TypeDef> {
             .field(InputValue::new("description", T::named(T::STRING)))
             .field(InputValue::new("tags", T::named_nn_list(T::STRING)))
             .field(InputValue::new("plural", T::named(T::BOOLEAN)).default_value(false))
-            .field(InputValue::new("translations", T::named_nn_list("TranslationTextInput"))),
+            .field(InputValue::new(
+                "translations",
+                T::named_nn_list("TranslationTextInput"),
+            )),
         InputObject::new("TranslationKeyUpdateInput")
             .description("Omitted fields are left unchanged; `description: null` clears it.")
             .field(InputValue::new("name", T::named(T::STRING)))
@@ -260,7 +295,10 @@ fn types() -> Vec<TypeDef> {
             .field(InputValue::new("tags", T::named_nn_list(T::STRING)))
             .field(InputValue::new("plural", T::named(T::BOOLEAN))),
         InputObject::new("TranslationKeyFilter")
-            .field(InputValue::new("search", T::named(T::STRING)).description("In names, descriptions and texts."))
+            .field(
+                InputValue::new("search", T::named(T::STRING))
+                    .description("In names, descriptions and texts."),
+            )
             .field(InputValue::new("namespace", T::named(T::STRING)))
             .field(InputValue::new("tag", T::named(T::STRING)))
             .field(InputValue::new("language", T::named(T::STRING)))
@@ -270,22 +308,47 @@ fn types() -> Vec<TypeDef> {
             ),
         InputObject::new("TranslationImportInput")
             .field(InputValue::new("format", nn("TranslationFormat")))
-            .field(InputValue::new("content", nn(T::STRING)).description("The file content (text)."))
-            .field(InputValue::new("language", T::named(T::STRING)).description("For single-language files that do not declare it."))
+            .field(
+                InputValue::new("content", nn(T::STRING)).description("The file content (text)."),
+            )
+            .field(
+                InputValue::new("language", T::named(T::STRING))
+                    .description("For single-language files that do not declare it."),
+            )
             .field(InputValue::new("namespace", T::named(T::STRING)).default_value(""))
-            .field(InputValue::new("mode", T::named("TranslationImportMode")).default_value(async_graphql::Value::Enum(async_graphql::Name::new("KEEP"))))
-            .field(InputValue::new("state", T::named("TranslationState")).default_value(async_graphql::Value::Enum(async_graphql::Name::new("TRANSLATED"))))
-            .field(InputValue::new("tags", T::named_nn_list(T::STRING)).description("Added to the keys the import creates."))
-            .field(InputValue::new("createLanguages", T::named(T::BOOLEAN)).default_value(false).description("Admins only.")),
+            .field(
+                InputValue::new("mode", T::named("TranslationImportMode"))
+                    .default_value(async_graphql::Value::Enum(async_graphql::Name::new("KEEP"))),
+            )
+            .field(
+                InputValue::new("state", T::named("TranslationState")).default_value(
+                    async_graphql::Value::Enum(async_graphql::Name::new("TRANSLATED")),
+                ),
+            )
+            .field(
+                InputValue::new("tags", T::named_nn_list(T::STRING))
+                    .description("Added to the keys the import creates."),
+            )
+            .field(
+                InputValue::new("createLanguages", T::named(T::BOOLEAN))
+                    .default_value(false)
+                    .description("Admins only."),
+            ),
         InputObject::new("TranslationExportInput")
             .field(InputValue::new("format", nn("TranslationFormat")))
             .field(InputValue::new("languages", T::named_nn_list(T::STRING)))
             .field(InputValue::new("namespaces", T::named_nn_list(T::STRING)))
-            .field(InputValue::new("states", T::named_nn_list("TranslationState")))
+            .field(InputValue::new(
+                "states",
+                T::named_nn_list("TranslationState"),
+            ))
             .field(InputValue::new("fallbackToBase", T::named(T::BOOLEAN)).default_value(false)),
         InputObject::new("TranslationSettingsInput")
             .field(InputValue::new("public", T::named(T::BOOLEAN)))
-            .field(InputValue::new("servedStates", T::named_nn_list("TranslationState")))
+            .field(InputValue::new(
+                "servedStates",
+                T::named_nn_list("TranslationState"),
+            ))
             .field(InputValue::new("fallbackToBase", T::named(T::BOOLEAN))),
         target_input("TranslationDeliveryTargetInput", true),
         target_input("TranslationDeliveryTargetUpdateInput", false),
@@ -310,18 +373,37 @@ fn target_input(name: &str, create: bool) -> InputObject {
         .field(InputValue::new("region", T::named(T::STRING)))
         .field(InputValue::new("forcePathStyle", T::named(T::BOOLEAN)))
         .field(InputValue::new("accessKeyId", T::named(T::STRING)))
-        .field(InputValue::new("secret", T::named(T::STRING)).description("Write-only. On update: omit to keep, null to remove."))
-        .field(InputValue::new("azureAuth", T::named("TranslationAzureAuth")))
+        .field(
+            InputValue::new("secret", T::named(T::STRING))
+                .description("Write-only. On update: omit to keep, null to remove."),
+        )
+        .field(InputValue::new(
+            "azureAuth",
+            T::named("TranslationAzureAuth"),
+        ))
         .field(InputValue::new("pathPrefix", T::named(T::STRING)))
         .field(InputValue::new("publicUrl", T::named(T::STRING)))
-        .field(InputValue::new("formats", if create { T::named_nn_list_nn("TranslationFormat") } else { T::named_nn_list("TranslationFormat") }))
+        .field(InputValue::new(
+            "formats",
+            if create {
+                T::named_nn_list_nn("TranslationFormat")
+            } else {
+                T::named_nn_list("TranslationFormat")
+            },
+        ))
         .field(InputValue::new("languages", T::named_nn_list(T::STRING)))
         .field(InputValue::new("namespaces", T::named_nn_list(T::STRING)))
-        .field(InputValue::new("states", T::named_nn_list("TranslationState")))
+        .field(InputValue::new(
+            "states",
+            T::named_nn_list("TranslationState"),
+        ))
         .field(InputValue::new("fallbackToBase", T::named(T::BOOLEAN)))
         .field(InputValue::new("autoPublish", T::named(T::BOOLEAN)));
     if create {
-        i = i.field(InputValue::new("kind", T::named_nn("TranslationStorageKind")));
+        i = i.field(InputValue::new(
+            "kind",
+            T::named_nn("TranslationStorageKind"),
+        ));
     }
     i
 }
@@ -353,13 +435,17 @@ fn format_info(f: Format) -> Value {
 
 fn queries() -> Vec<Field> {
     use TypeRef as T;
-    let languages = Field::new("translationLanguages", T::named_nn_list_nn("TranslationLanguage"), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            let all = service(&ctx)?.languages().await.map_err(cms_err)?;
-            Ok(Some(values(all.iter().map(|l| json!(l)))))
-        })
-    })
+    let languages = Field::new(
+        "translationLanguages",
+        T::named_nn_list_nn("TranslationLanguage"),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                let all = service(&ctx)?.languages().await.map_err(cms_err)?;
+                Ok(Some(values(all.iter().map(|l| json!(l)))))
+            })
+        },
+    )
     .description("Base language first.");
     let keys = Field::new("translationKeys", T::named_nn("TranslationKeyConnection"), |ctx| {
         FieldFuture::new(async move {
@@ -393,65 +479,102 @@ fn queries() -> Vec<Field> {
         })
     })
     .argument(InputValue::new("id", T::named_nn(T::ID)));
-    let namespaces = Field::new("translationNamespaces", T::named_nn_list_nn(T::STRING), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            let all = service(&ctx)?.namespaces().await.map_err(cms_err)?;
-            Ok(Some(FieldValue::list(all.into_iter().map(FieldValue::value))))
-        })
-    });
+    let namespaces = Field::new(
+        "translationNamespaces",
+        T::named_nn_list_nn(T::STRING),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                let all = service(&ctx)?.namespaces().await.map_err(cms_err)?;
+                Ok(Some(FieldValue::list(
+                    all.into_iter().map(FieldValue::value),
+                )))
+            })
+        },
+    );
     let tags = Field::new("translationTags", T::named_nn_list_nn(T::STRING), |ctx| {
         FieldFuture::new(async move {
             require_write(&ctx)?;
             let all = service(&ctx)?.tags().await.map_err(cms_err)?;
-            Ok(Some(FieldValue::list(all.into_iter().map(FieldValue::value))))
+            Ok(Some(FieldValue::list(
+                all.into_iter().map(FieldValue::value),
+            )))
         })
     });
-    let stats = Field::new("translationStats", T::named_nn_list_nn("TranslationLanguageStats"), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            let all = service(&ctx)?.stats().await.map_err(cms_err)?;
-            Ok(Some(values(all.iter().map(|s| json!(s)))))
-        })
-    });
-    let formats = Field::new("translationFormats", T::named_nn_list_nn("TranslationFormatInfo"), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            Ok(Some(values(Format::ALL.into_iter().map(format_info))))
-        })
-    });
-    let export = Field::new("exportTranslations", T::named_nn_list_nn("TranslationFile"), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let format = format_of(&v, "format")?.ok_or_else(|| bad("format is required"))?;
-            let opts = ExportOptions {
-                format,
-                languages: list(&v, "languages").unwrap_or_default(),
-                namespaces: list(&v, "namespaces").unwrap_or_default(),
-                states: states_of(&v, "states").filter(|s| !s.is_empty()).unwrap_or_else(|| TranslationState::ALL.to_vec()),
-                fallback_to_base: b(&v, "fallbackToBase").unwrap_or(false),
-            };
-            let files = service(&ctx)?.export(&opts).await.map_err(cms_err)?;
-            Ok(Some(values(files.iter().map(|f| json!(f)))))
-        })
-    })
+    let stats = Field::new(
+        "translationStats",
+        T::named_nn_list_nn("TranslationLanguageStats"),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                let all = service(&ctx)?.stats().await.map_err(cms_err)?;
+                Ok(Some(values(all.iter().map(|s| json!(s)))))
+            })
+        },
+    );
+    let formats = Field::new(
+        "translationFormats",
+        T::named_nn_list_nn("TranslationFormatInfo"),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                Ok(Some(values(Format::ALL.into_iter().map(format_info))))
+            })
+        },
+    );
+    let export = Field::new(
+        "exportTranslations",
+        T::named_nn_list_nn("TranslationFile"),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let format = format_of(&v, "format")?.ok_or_else(|| bad("format is required"))?;
+                let opts = ExportOptions {
+                    format,
+                    languages: list(&v, "languages").unwrap_or_default(),
+                    namespaces: list(&v, "namespaces").unwrap_or_default(),
+                    states: states_of(&v, "states")
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| TranslationState::ALL.to_vec()),
+                    fallback_to_base: b(&v, "fallbackToBase").unwrap_or(false),
+                };
+                let files = service(&ctx)?.export(&opts).await.map_err(cms_err)?;
+                Ok(Some(values(files.iter().map(|f| json!(f)))))
+            })
+        },
+    )
     .description("As text; GET /api/i18n/export downloads the same files (zipped when several).")
-    .argument(InputValue::new("input", T::named_nn("TranslationExportInput")));
-    let settings = Field::new("translationSettings", T::named_nn("TranslationSettings"), |ctx| {
-        FieldFuture::new(async move {
-            require_write(&ctx)?;
-            Ok(Some(value(json!(service(&ctx)?.settings().await.map_err(cms_err)?))))
-        })
-    });
-    let targets = Field::new("translationDeliveryTargets", T::named_nn_list_nn("TranslationDeliveryTarget"), |ctx| {
-        FieldFuture::new(async move {
-            admin_require(&ctx)?;
-            let all = service(&ctx)?.targets().await.map_err(cms_err)?;
-            Ok(Some(values(all.iter().map(target_json))))
-        })
-    });
-    vec![languages, keys, key, namespaces, tags, stats, formats, export, settings, targets]
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationExportInput"),
+    ));
+    let settings = Field::new(
+        "translationSettings",
+        T::named_nn("TranslationSettings"),
+        |ctx| {
+            FieldFuture::new(async move {
+                require_write(&ctx)?;
+                Ok(Some(value(json!(
+                    service(&ctx)?.settings().await.map_err(cms_err)?
+                ))))
+            })
+        },
+    );
+    let targets = Field::new(
+        "translationDeliveryTargets",
+        T::named_nn_list_nn("TranslationDeliveryTarget"),
+        |ctx| {
+            FieldFuture::new(async move {
+                admin_require(&ctx)?;
+                let all = service(&ctx)?.targets().await.map_err(cms_err)?;
+                Ok(Some(values(all.iter().map(target_json))))
+            })
+        },
+    );
+    vec![
+        languages, keys, key, namespaces, tags, stats, formats, export, settings, targets,
+    ]
 }
 
 fn key_out(k: TranslationKey) -> Option<FieldValue<'static>> {
@@ -460,28 +583,47 @@ fn key_out(k: TranslationKey) -> Option<FieldValue<'static>> {
 
 fn mutations() -> Vec<Field> {
     use TypeRef as T;
-    let add_language = Field::new("addTranslationLanguage", T::named_nn("TranslationLanguage"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = require_write(&ctx)?;
-            let (tag, name) = (str_arg(&ctx, "tag")?, opt_str_arg(&ctx, "name")?.unwrap_or_default());
-            let base = opt_bool_arg(&ctx, "base")?.unwrap_or(false);
-            let l = service(&ctx)?.add_language(&tag, &name, base, &actor).await.map_err(cms_err)?;
-            Ok(Some(value(json!(l))))
-        })
-    })
+    let add_language = Field::new(
+        "addTranslationLanguage",
+        T::named_nn("TranslationLanguage"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = require_write(&ctx)?;
+                let (tag, name) = (
+                    str_arg(&ctx, "tag")?,
+                    opt_str_arg(&ctx, "name")?.unwrap_or_default(),
+                );
+                let base = opt_bool_arg(&ctx, "base")?.unwrap_or(false);
+                let l = service(&ctx)?
+                    .add_language(&tag, &name, base, &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(value(json!(l))))
+            })
+        },
+    )
     .argument(InputValue::new("tag", T::named_nn(T::STRING)))
     .argument(InputValue::new("name", T::named(T::STRING)))
     .argument(InputValue::new("base", T::named(T::BOOLEAN)));
-    let update_language = Field::new("updateTranslationLanguage", T::named_nn("TranslationLanguage"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = require_write(&ctx)?;
-            let l = service(&ctx)?
-                .update_language(&str_arg(&ctx, "tag")?, opt_str_arg(&ctx, "name")?, opt_bool_arg(&ctx, "base")?, &actor)
-                .await
-                .map_err(cms_err)?;
-            Ok(Some(value(json!(l))))
-        })
-    })
+    let update_language = Field::new(
+        "updateTranslationLanguage",
+        T::named_nn("TranslationLanguage"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = require_write(&ctx)?;
+                let l = service(&ctx)?
+                    .update_language(
+                        &str_arg(&ctx, "tag")?,
+                        opt_str_arg(&ctx, "name")?,
+                        opt_bool_arg(&ctx, "base")?,
+                        &actor,
+                    )
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(value(json!(l))))
+            })
+        },
+    )
     .argument(InputValue::new("tag", T::named_nn(T::STRING)))
     .argument(InputValue::new("name", T::named(T::STRING)))
     .argument(InputValue::new("base", T::named(T::BOOLEAN)));
@@ -489,51 +631,79 @@ fn mutations() -> Vec<Field> {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let tag = str_arg(&ctx, "tag")?;
-            service(&ctx)?.remove_language(&tag, &actor).await.map_err(cms_err)?;
+            service(&ctx)?
+                .remove_language(&tag, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::value(tag)))
         })
     })
     .description("Removes the language and ALL of its translations.")
     .argument(InputValue::new("tag", T::named_nn(T::STRING)));
 
-    let create_key = Field::new("createTranslationKey", T::named_nn("TranslationKey"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = require_write(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let translations = v
-                .get("translations")
-                .and_then(Value::as_array)
-                .map(|xs| xs.iter().filter_map(|t| Some((s(t, "language")?, s(t, "text")?))).collect())
-                .unwrap_or_default();
-            let input = KeyInput {
-                name: s(&v, "name").unwrap_or_default(),
-                namespace: s(&v, "namespace").unwrap_or_default(),
-                description: s(&v, "description"),
-                tags: list(&v, "tags").unwrap_or_default(),
-                plural: b(&v, "plural").unwrap_or(false),
-                translations,
-            };
-            Ok(key_out(service(&ctx)?.create_key(input, &actor).await.map_err(cms_err)?))
-        })
-    })
+    let create_key = Field::new(
+        "createTranslationKey",
+        T::named_nn("TranslationKey"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = require_write(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let translations = v
+                    .get("translations")
+                    .and_then(Value::as_array)
+                    .map(|xs| {
+                        xs.iter()
+                            .filter_map(|t| Some((s(t, "language")?, s(t, "text")?)))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let input = KeyInput {
+                    name: s(&v, "name").unwrap_or_default(),
+                    namespace: s(&v, "namespace").unwrap_or_default(),
+                    description: s(&v, "description"),
+                    tags: list(&v, "tags").unwrap_or_default(),
+                    plural: b(&v, "plural").unwrap_or(false),
+                    translations,
+                };
+                Ok(key_out(
+                    service(&ctx)?
+                        .create_key(input, &actor)
+                        .await
+                        .map_err(cms_err)?,
+                ))
+            })
+        },
+    )
     .argument(InputValue::new("input", T::named_nn("TranslationKeyInput")));
-    let update_key = Field::new("updateTranslationKey", T::named_nn("TranslationKey"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = require_write(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let update = KeyUpdate {
-                name: s(&v, "name"),
-                namespace: s(&v, "namespace"),
-                description: nullable(&v, "description"),
-                tags: list(&v, "tags"),
-                plural: b(&v, "plural"),
-            };
-            Ok(key_out(service(&ctx)?.update_key(&str_arg(&ctx, "id")?, update, &actor).await.map_err(cms_err)?))
-        })
-    })
+    let update_key = Field::new(
+        "updateTranslationKey",
+        T::named_nn("TranslationKey"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = require_write(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let update = KeyUpdate {
+                    name: s(&v, "name"),
+                    namespace: s(&v, "namespace"),
+                    description: nullable(&v, "description"),
+                    tags: list(&v, "tags"),
+                    plural: b(&v, "plural"),
+                };
+                Ok(key_out(
+                    service(&ctx)?
+                        .update_key(&str_arg(&ctx, "id")?, update, &actor)
+                        .await
+                        .map_err(cms_err)?,
+                ))
+            })
+        },
+    )
     .description("Renaming or moving a key gives it a new id.")
     .argument(InputValue::new("id", T::named_nn(T::ID)))
-    .argument(InputValue::new("input", T::named_nn("TranslationKeyUpdateInput")));
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationKeyUpdateInput"),
+    ));
     let delete_keys = Field::new("deleteTranslationKeys", T::named_nn(T::INT), |ctx| {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
@@ -544,7 +714,10 @@ fn mutations() -> Vec<Field> {
                 .iter()
                 .map(|v| v.string().map(String::from))
                 .collect::<Result<_, _>>()?;
-            let n = service(&ctx)?.delete_keys(&ids, &actor).await.map_err(cms_err)?;
+            let n = service(&ctx)?
+                .delete_keys(&ids, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::value(n as i64)))
         })
     })
@@ -592,126 +765,196 @@ fn mutations() -> Vec<Field> {
     .argument(InputValue::new("language", T::named_nn(T::STRING)))
     .argument(InputValue::new("text", T::named(T::STRING)))
     .argument(InputValue::new("state", T::named("TranslationState")));
-    let import = Field::new("importTranslations", T::named_nn("TranslationImportReport"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = require_write(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let input = ImportInput {
-                format: format_of(&v, "format")?.ok_or_else(|| bad("format is required"))?,
-                content: s(&v, "content").unwrap_or_default(),
-                language: s(&v, "language").filter(|l| !l.is_empty()),
-                namespace: s(&v, "namespace").unwrap_or_default(),
-                mode: if s(&v, "mode").as_deref() == Some("OVERRIDE") { ImportMode::Override } else { ImportMode::Keep },
-                state: s(&v, "state").and_then(|x| TranslationState::parse(&x)).unwrap_or(TranslationState::Translated),
-                tags: list(&v, "tags").unwrap_or_default(),
-                create_languages: b(&v, "createLanguages").unwrap_or(false),
-            };
-            let report = service(&ctx)?.import(input, &actor).await.map_err(cms_err)?;
-            Ok(Some(value(json!(report))))
-        })
-    })
-    .argument(InputValue::new("input", T::named_nn("TranslationImportInput")));
-    let settings = Field::new("updateTranslationSettings", T::named_nn("TranslationSettings"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = admin_require(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let svc = service(&ctx)?;
-            let mut current: I18nSettings = svc.settings().await.map_err(cms_err)?;
-            if let Some(p) = b(&v, "public") {
-                current.public = p;
-            }
-            if let Some(states) = states_of(&v, "servedStates") {
-                if states.is_empty() {
-                    return Err(bad("serve at least one state"));
+    let import = Field::new(
+        "importTranslations",
+        T::named_nn("TranslationImportReport"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = require_write(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let input = ImportInput {
+                    format: format_of(&v, "format")?.ok_or_else(|| bad("format is required"))?,
+                    content: s(&v, "content").unwrap_or_default(),
+                    language: s(&v, "language").filter(|l| !l.is_empty()),
+                    namespace: s(&v, "namespace").unwrap_or_default(),
+                    mode: if s(&v, "mode").as_deref() == Some("OVERRIDE") {
+                        ImportMode::Override
+                    } else {
+                        ImportMode::Keep
+                    },
+                    state: s(&v, "state")
+                        .and_then(|x| TranslationState::parse(&x))
+                        .unwrap_or(TranslationState::Translated),
+                    tags: list(&v, "tags").unwrap_or_default(),
+                    create_languages: b(&v, "createLanguages").unwrap_or(false),
+                };
+                let report = service(&ctx)?
+                    .import(input, &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(value(json!(report))))
+            })
+        },
+    )
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationImportInput"),
+    ));
+    let settings = Field::new(
+        "updateTranslationSettings",
+        T::named_nn("TranslationSettings"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = admin_require(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let svc = service(&ctx)?;
+                let mut current: I18nSettings = svc.settings().await.map_err(cms_err)?;
+                if let Some(p) = b(&v, "public") {
+                    current.public = p;
                 }
-                current.served_states = states;
-            }
-            if let Some(f) = b(&v, "fallbackToBase") {
-                current.fallback_to_base = f;
-            }
-            Ok(Some(value(json!(svc.update_settings(current, &actor).await.map_err(cms_err)?))))
-        })
-    })
-    .argument(InputValue::new("input", T::named_nn("TranslationSettingsInput")));
+                if let Some(states) = states_of(&v, "servedStates") {
+                    if states.is_empty() {
+                        return Err(bad("serve at least one state"));
+                    }
+                    current.served_states = states;
+                }
+                if let Some(f) = b(&v, "fallbackToBase") {
+                    current.fallback_to_base = f;
+                }
+                Ok(Some(value(json!(
+                    svc.update_settings(current, &actor)
+                        .await
+                        .map_err(cms_err)?
+                ))))
+            })
+        },
+    )
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationSettingsInput"),
+    ));
 
-    let create_target = Field::new("createTranslationDeliveryTarget", T::named_nn("TranslationDeliveryTarget"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = admin_require(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let kind = kind_of(&v).ok_or_else(|| bad("kind is required"))?;
-            let input = DeliveryInput {
-                name: s(&v, "name").unwrap_or_default(),
-                enabled: b(&v, "enabled").unwrap_or(true),
-                kind,
-                provider: s(&v, "provider").unwrap_or_else(|| if kind == StorageKind::AzureBlob { "azure" } else { "other" }.into()),
-                bucket: s(&v, "bucket").unwrap_or_default(),
-                endpoint: s(&v, "endpoint"),
-                region: s(&v, "region"),
-                force_path_style: b(&v, "forcePathStyle").unwrap_or(false),
-                access_key_id: s(&v, "accessKeyId"),
-                secret: s(&v, "secret"),
-                azure_auth: azure_auth_of(&v).unwrap_or_default(),
-                path_prefix: s(&v, "pathPrefix").unwrap_or_default(),
-                public_url: s(&v, "publicUrl"),
-                formats: formats_of(&v, "formats")?.unwrap_or_default(),
-                languages: list(&v, "languages").unwrap_or_default(),
-                namespaces: list(&v, "namespaces").unwrap_or_default(),
-                states: states_of(&v, "states").filter(|s| !s.is_empty()).unwrap_or_else(|| TranslationState::ALL.to_vec()),
-                fallback_to_base: b(&v, "fallbackToBase").unwrap_or(false),
-                auto_publish: b(&v, "autoPublish").unwrap_or(false),
-            };
-            let t = service(&ctx)?.create_target(input, &actor).await.map_err(cms_err)?;
-            Ok(Some(value(target_json(&t))))
-        })
-    })
-    .argument(InputValue::new("input", T::named_nn("TranslationDeliveryTargetInput")));
-    let update_target = Field::new("updateTranslationDeliveryTarget", T::named_nn("TranslationDeliveryTarget"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = admin_require(&ctx)?;
-            let v = json_arg(&ctx, "input")?;
-            let update = DeliveryUpdate {
-                name: s(&v, "name"),
-                enabled: b(&v, "enabled"),
-                provider: s(&v, "provider"),
-                bucket: s(&v, "bucket"),
-                endpoint: nullable(&v, "endpoint"),
-                region: nullable(&v, "region"),
-                force_path_style: b(&v, "forcePathStyle"),
-                access_key_id: nullable(&v, "accessKeyId"),
-                secret: nullable(&v, "secret"),
-                azure_auth: azure_auth_of(&v),
-                path_prefix: s(&v, "pathPrefix"),
-                public_url: nullable(&v, "publicUrl"),
-                formats: formats_of(&v, "formats")?,
-                languages: list(&v, "languages"),
-                namespaces: list(&v, "namespaces"),
-                states: states_of(&v, "states"),
-                fallback_to_base: b(&v, "fallbackToBase"),
-                auto_publish: b(&v, "autoPublish"),
-            };
-            let t = service(&ctx)?.update_target(&str_arg(&ctx, "id")?, update, &actor).await.map_err(cms_err)?;
-            Ok(Some(value(target_json(&t))))
-        })
-    })
+    let create_target = Field::new(
+        "createTranslationDeliveryTarget",
+        T::named_nn("TranslationDeliveryTarget"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = admin_require(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let kind = kind_of(&v).ok_or_else(|| bad("kind is required"))?;
+                let input = DeliveryInput {
+                    name: s(&v, "name").unwrap_or_default(),
+                    enabled: b(&v, "enabled").unwrap_or(true),
+                    kind,
+                    provider: s(&v, "provider").unwrap_or_else(|| {
+                        if kind == StorageKind::AzureBlob {
+                            "azure"
+                        } else {
+                            "other"
+                        }
+                        .into()
+                    }),
+                    bucket: s(&v, "bucket").unwrap_or_default(),
+                    endpoint: s(&v, "endpoint"),
+                    region: s(&v, "region"),
+                    force_path_style: b(&v, "forcePathStyle").unwrap_or(false),
+                    access_key_id: s(&v, "accessKeyId"),
+                    secret: s(&v, "secret"),
+                    azure_auth: azure_auth_of(&v).unwrap_or_default(),
+                    path_prefix: s(&v, "pathPrefix").unwrap_or_default(),
+                    public_url: s(&v, "publicUrl"),
+                    formats: formats_of(&v, "formats")?.unwrap_or_default(),
+                    languages: list(&v, "languages").unwrap_or_default(),
+                    namespaces: list(&v, "namespaces").unwrap_or_default(),
+                    states: states_of(&v, "states")
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| TranslationState::ALL.to_vec()),
+                    fallback_to_base: b(&v, "fallbackToBase").unwrap_or(false),
+                    auto_publish: b(&v, "autoPublish").unwrap_or(false),
+                };
+                let t = service(&ctx)?
+                    .create_target(input, &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(value(target_json(&t))))
+            })
+        },
+    )
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationDeliveryTargetInput"),
+    ));
+    let update_target = Field::new(
+        "updateTranslationDeliveryTarget",
+        T::named_nn("TranslationDeliveryTarget"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = admin_require(&ctx)?;
+                let v = json_arg(&ctx, "input")?;
+                let update = DeliveryUpdate {
+                    name: s(&v, "name"),
+                    enabled: b(&v, "enabled"),
+                    provider: s(&v, "provider"),
+                    bucket: s(&v, "bucket"),
+                    endpoint: nullable(&v, "endpoint"),
+                    region: nullable(&v, "region"),
+                    force_path_style: b(&v, "forcePathStyle"),
+                    access_key_id: nullable(&v, "accessKeyId"),
+                    secret: nullable(&v, "secret"),
+                    azure_auth: azure_auth_of(&v),
+                    path_prefix: s(&v, "pathPrefix"),
+                    public_url: nullable(&v, "publicUrl"),
+                    formats: formats_of(&v, "formats")?,
+                    languages: list(&v, "languages"),
+                    namespaces: list(&v, "namespaces"),
+                    states: states_of(&v, "states"),
+                    fallback_to_base: b(&v, "fallbackToBase"),
+                    auto_publish: b(&v, "autoPublish"),
+                };
+                let t = service(&ctx)?
+                    .update_target(&str_arg(&ctx, "id")?, update, &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(value(target_json(&t))))
+            })
+        },
+    )
     .argument(InputValue::new("id", T::named_nn(T::ID)))
-    .argument(InputValue::new("input", T::named_nn("TranslationDeliveryTargetUpdateInput")));
-    let delete_target = Field::new("deleteTranslationDeliveryTarget", T::named_nn(T::ID), |ctx| {
-        FieldFuture::new(async move {
-            let actor = admin_require(&ctx)?;
-            let id = str_arg(&ctx, "id")?;
-            service(&ctx)?.delete_target(&id, &actor).await.map_err(cms_err)?;
-            Ok(Some(FieldValue::value(id)))
-        })
-    })
+    .argument(InputValue::new(
+        "input",
+        T::named_nn("TranslationDeliveryTargetUpdateInput"),
+    ));
+    let delete_target = Field::new(
+        "deleteTranslationDeliveryTarget",
+        T::named_nn(T::ID),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = admin_require(&ctx)?;
+                let id = str_arg(&ctx, "id")?;
+                service(&ctx)?
+                    .delete_target(&id, &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(FieldValue::value(id)))
+            })
+        },
+    )
     .argument(InputValue::new("id", T::named_nn(T::ID)));
-    let publish = Field::new("publishTranslations", T::named_nn_list_nn("TranslationPublishReport"), |ctx| {
-        FieldFuture::new(async move {
-            let actor = admin_require(&ctx)?;
-            let id = opt_str_arg(&ctx, "targetId")?;
-            let reports = service(&ctx)?.publish(id.as_deref(), &actor).await.map_err(cms_err)?;
-            Ok(Some(values(reports.iter().map(|r| json!(r)))))
-        })
-    })
+    let publish = Field::new(
+        "publishTranslations",
+        T::named_nn_list_nn("TranslationPublishReport"),
+        |ctx| {
+            FieldFuture::new(async move {
+                let actor = admin_require(&ctx)?;
+                let id = opt_str_arg(&ctx, "targetId")?;
+                let reports = service(&ctx)?
+                    .publish(id.as_deref(), &actor)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(values(reports.iter().map(|r| json!(r)))))
+            })
+        },
+    )
     .description("Publishes one target, or every enabled target when `targetId` is omitted.")
     .argument(InputValue::new("targetId", T::named(T::ID)));
 

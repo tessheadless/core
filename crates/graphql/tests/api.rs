@@ -7,10 +7,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde_json::{Value, json};
 use tess_core::memory::MemoryStorage;
 use tess_graphql::ids::{IdCodec, IdConfig};
 use tess_graphql::{GraphqlService, Principal, SchemaConfig};
-use serde_json::{Value, json};
 
 fn random_secret() -> Vec<u8> {
     let mut buf = vec![0u8; 32];
@@ -26,11 +26,16 @@ fn service() -> GraphqlService {
         ttl: Duration::from_secs(3600),
     })
     .unwrap();
-    GraphqlService::new(Arc::new(MemoryStorage::new()), codec, SchemaConfig::default())
+    GraphqlService::new(
+        Arc::new(MemoryStorage::new()),
+        codec,
+        SchemaConfig::default(),
+    )
 }
 
 async fn run(svc: &GraphqlService, who: &Principal, query: &str, vars: Value) -> Value {
-    let req = async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
+    let req =
+        async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
     let res = svc.execute(req, who.clone()).await;
     serde_json::to_value(&res).unwrap()
 }
@@ -46,7 +51,9 @@ fn sys() -> Principal {
 }
 
 fn error_code(res: &Value) -> &str {
-    res["errors"][0]["extensions"]["code"].as_str().unwrap_or_default()
+    res["errors"][0]["extensions"]["code"]
+        .as_str()
+        .unwrap_or_default()
 }
 
 const SETUP: &str = r#"
@@ -70,9 +77,21 @@ async fn content_lifecycle() {
     let created = ok(&svc, &admin, SETUP, json!({})).await;
     assert_eq!(created["p"]["pluralApiId"], "posts");
 
-    let author = ok(&svc, &admin, r#"mutation { createAuthor(data: {name: "Writer A"}) { id ref } }"#, json!({})).await;
+    let author = ok(
+        &svc,
+        &admin,
+        r#"mutation { createAuthor(data: {name: "Writer A"}) { id ref } }"#,
+        json!({}),
+    )
+    .await;
     let author_id = author["createAuthor"]["id"].as_str().unwrap().to_string();
-    ok(&svc, &admin, "mutation($id: ID!) { publishAuthor(id: $id) { id } }", json!({"id": author_id})).await;
+    ok(
+        &svc,
+        &admin,
+        "mutation($id: ID!) { publishAuthor(id: $id) { id } }",
+        json!({"id": author_id}),
+    )
+    .await;
 
     let mut post_ids = Vec::new();
     for (title, views) in [("Hello", 5), ("World", 50), ("Draft only", 1)] {
@@ -90,7 +109,13 @@ async fn content_lifecycle() {
         post_ids.push(res["createPost"]["id"].as_str().unwrap().to_string());
     }
     for id in &post_ids[..2] {
-        ok(&svc, &admin, "mutation($id: ID!) { publishPost(id: $id) { stage } }", json!({"id": id})).await;
+        ok(
+            &svc,
+            &admin,
+            "mutation($id: ID!) { publishPost(id: $id) { stage } }",
+            json!({"id": id}),
+        )
+        .await;
     }
 
     // Public clients see published entries only.
@@ -111,12 +136,26 @@ async fn content_lifecycle() {
     assert_eq!(items[1]["coAuthors"][0]["name"], "Writer A");
 
     // Ids are opaque and fresh on every response; refs are stable.
-    let again = ok(&svc, &admin, "{ posts(orderBy: [views_DESC]) { items { id ref } } }", json!({})).await;
+    let again = ok(
+        &svc,
+        &admin,
+        "{ posts(orderBy: [views_DESC]) { items { id ref } } }",
+        json!({}),
+    )
+    .await;
     let first = &again["posts"]["items"][0];
     assert_ne!(first["id"], json!(post_ids[1]));
     assert_eq!(first["ref"], items[0]["ref"]);
-    assert_eq!(find_uuid(&again.to_string()), None, "responses must not leak storage UUIDs");
-    assert_eq!(find_uuid(&public.to_string()), None, "responses must not leak storage UUIDs");
+    assert_eq!(
+        find_uuid(&again.to_string()),
+        None,
+        "responses must not leak storage UUIDs"
+    );
+    assert_eq!(
+        find_uuid(&public.to_string()),
+        None,
+        "responses must not leak storage UUIDs"
+    );
 
     // Filtering by an opaque id and by a relation.
     let by_id = ok(
@@ -155,8 +194,20 @@ async fn content_lifecycle() {
     assert_eq!(both["p"], json!({"title": "Hello", "views": 5}));
 
     // Deleting.
-    ok(&svc, &admin, "mutation($id: ID!) { deletePost(id: $id) }", json!({"id": post_ids[2]})).await;
-    let res = run(&svc, &admin, "mutation($id: ID!) { deletePost(id: $id) }", json!({"id": post_ids[2]})).await;
+    ok(
+        &svc,
+        &admin,
+        "mutation($id: ID!) { deletePost(id: $id) }",
+        json!({"id": post_ids[2]}),
+    )
+    .await;
+    let res = run(
+        &svc,
+        &admin,
+        "mutation($id: ID!) { deletePost(id: $id) }",
+        json!({"id": post_ids[2]}),
+    )
+    .await;
     assert_eq!(error_code(&res), "NOT_FOUND");
 }
 
@@ -172,13 +223,37 @@ async fn authorization() {
     let svc = service();
     ok(&svc, &sys(), SETUP, json!({})).await;
 
-    let res = run(&svc, &Principal::Public, r#"mutation { createAuthor(data: {name: "x"}) { id } }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &Principal::Public,
+        r#"mutation { createAuthor(data: {name: "x"}) { id } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "FORBIDDEN");
-    let res = run(&svc, &Principal::Public, "{ authors(stage: DRAFT) { total } }", json!({})).await;
+    let res = run(
+        &svc,
+        &Principal::Public,
+        "{ authors(stage: DRAFT) { total } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "FORBIDDEN");
-    let res = run(&svc, &Principal::Public, "{ contentTypes { apiId } }", json!({})).await;
+    let res = run(
+        &svc,
+        &Principal::Public,
+        "{ contentTypes { apiId } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "FORBIDDEN");
-    let res = run(&svc, &Principal::Anonymous, "{ authors { total } }", json!({})).await;
+    let res = run(
+        &svc,
+        &Principal::Anonymous,
+        "{ authors { total } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "FORBIDDEN");
     ok(&svc, &Principal::Public, "{ authors { total } }", json!({})).await;
 }
@@ -187,19 +262,43 @@ async fn authorization() {
 async fn ids_are_type_checked() {
     let svc = service();
     ok(&svc, &sys(), SETUP, json!({})).await;
-    let author = ok(&svc, &sys(), r#"mutation { createAuthor(data: {name: "x"}) { id } }"#, json!({})).await;
+    let author = ok(
+        &svc,
+        &sys(),
+        r#"mutation { createAuthor(data: {name: "x"}) { id } }"#,
+        json!({}),
+    )
+    .await;
     let author_id = &author["createAuthor"]["id"];
 
     // An Author id used as a Post id.
-    let res = run(&svc, &sys(), "query($id: ID!) { post(id: $id, stage: DRAFT) { id } }", json!({"id": author_id})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        "query($id: ID!) { post(id: $id, stage: DRAFT) { id } }",
+        json!({"id": author_id}),
+    )
+    .await;
     assert_eq!(error_code(&res), "BAD_USER_INPUT");
     // Garbage and tampered ids.
-    let res = run(&svc, &sys(), r#"{ author(id: "nope", stage: DRAFT) { id } }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        r#"{ author(id: "nope", stage: DRAFT) { id } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "BAD_USER_INPUT");
     let mut tampered = author_id.as_str().unwrap().to_string();
     let last = tampered.pop().unwrap();
     tampered.push(if last == 'A' { 'B' } else { 'A' });
-    let res = run(&svc, &sys(), "query($id: ID!) { author(id: $id, stage: DRAFT) { id } }", json!({"id": tampered})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        "query($id: ID!) { author(id: $id, stage: DRAFT) { id } }",
+        json!({"id": tampered}),
+    )
+    .await;
     assert_eq!(error_code(&res), "BAD_USER_INPUT");
 }
 
@@ -227,7 +326,13 @@ async fn schema_evolution_and_conflicts() {
     assert_eq!(error_code(&res), "BAD_USER_INPUT");
 
     // Referenced content types cannot be deleted.
-    let res = run(&svc, &sys(), r#"mutation { deleteContentType(apiId: "Author") }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        r#"mutation { deleteContentType(apiId: "Author") }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "CONFLICT");
 
     // A new field is usable right after the change.
@@ -239,12 +344,30 @@ async fn schema_evolution_and_conflicts() {
         json!({}),
     )
     .await;
-    let res = ok(&svc, &sys(), r#"mutation { createAuthor(data: {name: "x", bio: "y"}) { bio } }"#, json!({})).await;
+    let res = ok(
+        &svc,
+        &sys(),
+        r#"mutation { createAuthor(data: {name: "x", bio: "y"}) { bio } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(res["createAuthor"]["bio"], "y");
 
-    ok(&svc, &sys(), r#"mutation { deleteContentType(apiId: "Post") }"#, json!({})).await;
+    ok(
+        &svc,
+        &sys(),
+        r#"mutation { deleteContentType(apiId: "Post") }"#,
+        json!({}),
+    )
+    .await;
     let res = run(&svc, &sys(), "{ posts { total } }", json!({})).await;
-    assert!(res["errors"][0]["message"].as_str().unwrap().contains("posts"), "{res}");
+    assert!(
+        res["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("posts"),
+        "{res}"
+    );
 }
 
 #[tokio::test]
@@ -260,16 +383,31 @@ async fn media_assets() {
         ttl: Duration::from_secs(3600),
     })
     .unwrap();
-    let media = MediaService::new(Arc::new(FsBlobStore::new(dir.path())), MediaConfig::default());
+    let media = MediaService::new(
+        Arc::new(FsBlobStore::new(dir.path())),
+        MediaConfig::default(),
+    );
     let svc = GraphqlService::with_services(
         Arc::new(MemoryStorage::new()),
         codec,
         SchemaConfig::default(),
-        Services { media: Some(media.clone()), ..Default::default() },
+        Services {
+            media: Some(media.clone()),
+            ..Default::default()
+        },
     );
     svc.install().await.unwrap();
 
-    let asset = media.upload(svc.cms(), &tess_core::Actor::system(), "a.txt", "text/plain", bytes::Bytes::from_static(b"hi")).await.unwrap();
+    let asset = media
+        .upload(
+            svc.cms(),
+            &tess_core::Actor::system(),
+            "a.txt",
+            "text/plain",
+            bytes::Bytes::from_static(b"hi"),
+        )
+        .await
+        .unwrap();
     let id = svc.codec().encode("Asset", asset.id);
     ok(
         &svc,
@@ -289,12 +427,29 @@ async fn media_assets() {
     let cover = &page["createPage"]["cover"];
     assert_eq!(cover["fileName"], "a.txt");
     assert_eq!(cover["status"], "READY");
-    assert!(cover["url"].as_str().unwrap().starts_with("/media/files/assets/"));
+    assert!(
+        cover["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("/media/files/assets/")
+    );
 
     // Direct uploads need a presigning store; the built-in type is protected.
-    let res = run(&svc, &sys(), r#"mutation { createAssetUpload(fileName: "x", mimeType: "text/plain", size: 1) { url } }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        r#"mutation { createAssetUpload(fileName: "x", mimeType: "text/plain", size: 1) { url } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "BAD_USER_INPUT");
-    let res = run(&svc, &sys(), r#"mutation { deleteContentType(apiId: "Asset") }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &sys(),
+        r#"mutation { deleteContentType(apiId: "Asset") }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "CONFLICT");
 }
 
@@ -312,18 +467,47 @@ async fn full_text_search() {
     .unwrap();
     let storage: Arc<dyn tess_core::Storage> = Arc::new(MemoryStorage::new());
     let search = SearchService::new(Arc::new(MemoryEngine::default()), storage.clone());
-    let svc = GraphqlService::with_services(storage, codec, SchemaConfig::default(), Services { search: Some(search), ..Default::default() });
+    let svc = GraphqlService::with_services(
+        storage,
+        codec,
+        SchemaConfig::default(),
+        Services {
+            search: Some(search),
+            ..Default::default()
+        },
+    );
     svc.install().await.unwrap();
     ok(&svc, &sys(), SETUP, json!({})).await;
     for title in ["Rust in production", "Gardening tips", "Rusty bikes"] {
-        let r = ok(&svc, &sys(), "mutation($t: String!) { createPost(data: {title: $t}) { id } }", json!({"t": title})).await;
+        let r = ok(
+            &svc,
+            &sys(),
+            "mutation($t: String!) { createPost(data: {title: $t}) { id } }",
+            json!({"t": title}),
+        )
+        .await;
         if title != "Rusty bikes" {
-            ok(&svc, &sys(), "mutation($id: ID!) { publishPost(id: $id) { id } }", json!({"id": r["createPost"]["id"]})).await;
+            ok(
+                &svc,
+                &sys(),
+                "mutation($id: ID!) { publishPost(id: $id) { id } }",
+                json!({"id": r["createPost"]["id"]}),
+            )
+            .await;
         }
     }
     // Opt-in: no search query until an Admin enables it.
-    let res = run(&svc, &Principal::Public, r#"{ searchPosts(query: "rust") { total } }"#, json!({})).await;
-    assert!(res["errors"].is_array(), "searchPosts is not in the schema yet");
+    let res = run(
+        &svc,
+        &Principal::Public,
+        r#"{ searchPosts(query: "rust") { total } }"#,
+        json!({}),
+    )
+    .await;
+    assert!(
+        res["errors"].is_array(),
+        "searchPosts is not in the schema yet"
+    );
     let settings = ok(
         &svc,
         &sys(),
@@ -332,7 +516,12 @@ async fn full_text_search() {
     )
     .await;
     assert_eq!(settings["searchSettings"]["engine"], "memory");
-    let post = &settings["searchSettings"]["models"].as_array().unwrap().iter().find(|m| m["apiId"] == "Post").unwrap();
+    let post = &settings["searchSettings"]["models"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["apiId"] == "Post")
+        .unwrap();
     assert_eq!(post["enabled"], false);
     assert_eq!(
         post["fields"][0],
@@ -340,18 +529,54 @@ async fn full_text_search() {
                "searchable": true, "engineConfig": null})
     );
     let update = r#"mutation($f: [String!]!) { updateSearchSettings(apiId: "Post", enabled: true, fields: $f) { enabled active indexedEntries fields { name selected } } }"#;
-    assert_eq!(error_code(&run(&svc, &Principal::Public, update, json!({"f": ["title"]})).await), "FORBIDDEN");
-    assert_eq!(error_code(&run(&svc, &sys(), update, json!({"f": []})).await), "BAD_USER_INPUT");
+    assert_eq!(
+        error_code(&run(&svc, &Principal::Public, update, json!({"f": ["title"]})).await),
+        "FORBIDDEN"
+    );
+    assert_eq!(
+        error_code(&run(&svc, &sys(), update, json!({"f": []})).await),
+        "BAD_USER_INPUT"
+    );
     let res = ok(&svc, &sys(), update, json!({"f": ["title"]})).await;
     assert_eq!(res["updateSearchSettings"]["active"], true);
-    assert_eq!(res["updateSearchSettings"]["indexedEntries"], 3, "existing entries are indexed");
+    assert_eq!(
+        res["updateSearchSettings"]["indexedEntries"], 3,
+        "existing entries are indexed"
+    );
 
-    let res = ok(&svc, &Principal::Public, r#"{ searchPosts(query: "rust") { total items { title } } }"#, json!({})).await;
-    assert_eq!(res["searchPosts"], json!({"total": 1, "items": [{"title": "Rust in production"}]}));
-    let res = ok(&svc, &sys(), r#"{ searchPosts(query: "rust", stage: DRAFT) { total } }"#, json!({})).await;
+    let res = ok(
+        &svc,
+        &Principal::Public,
+        r#"{ searchPosts(query: "rust") { total items { title } } }"#,
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        res["searchPosts"],
+        json!({"total": 1, "items": [{"title": "Rust in production"}]})
+    );
+    let res = ok(
+        &svc,
+        &sys(),
+        r#"{ searchPosts(query: "rust", stage: DRAFT) { total } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(res["searchPosts"]["total"], 2);
-    let res = run(&svc, &Principal::Public, r#"{ searchPosts(query: "rust", stage: DRAFT) { total } }"#, json!({})).await;
+    let res = run(
+        &svc,
+        &Principal::Public,
+        r#"{ searchPosts(query: "rust", stage: DRAFT) { total } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(error_code(&res), "FORBIDDEN");
-    let res = ok(&svc, &sys(), r#"mutation { reindexSearch(apiId: "Post") }"#, json!({})).await;
+    let res = ok(
+        &svc,
+        &sys(),
+        r#"mutation { reindexSearch(apiId: "Post") }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(res["reindexSearch"], 3);
 }

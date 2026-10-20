@@ -139,7 +139,9 @@ pub fn check_conflicts(content_types: &[ContentType], components: &Components) -
     let mut queries: HashSet<String> = FIXED_QUERIES.iter().map(|s| s.to_string()).collect();
     let mut mutations: HashSet<String> = FIXED_MUTATIONS.iter().map(|s| s.to_string()).collect();
     let clash = |what: &str, owner: &str, kind: &str, name: &str| {
-        Err(CmsError::Conflict(format!("{what} `{owner}` generates {kind} `{name}`, which is already used")))
+        Err(CmsError::Conflict(format!(
+            "{what} `{owner}` generates {kind} `{name}`, which is already used"
+        )))
     };
     for c in components.values() {
         let mut generated = vec![c.api_id.clone(), component_input_name(&c.api_id)];
@@ -156,7 +158,14 @@ pub fn check_conflicts(content_types: &[ContentType], components: &Components) -
     }
     for ct in content_types {
         let n = Names::of(ct);
-        let mut generated = vec![n.object, n.connection, n.where_input, n.order_by, n.create_input, n.update_input];
+        let mut generated = vec![
+            n.object,
+            n.connection,
+            n.where_input,
+            n.order_by,
+            n.create_input,
+            n.update_input,
+        ];
         for f in &ct.fields {
             match f.field_type {
                 FieldType::Enum { .. } => generated.push(enum_type_name(&ct.api_id, &f.name)),
@@ -179,7 +188,16 @@ pub fn check_conflicts(content_types: &[ContentType], components: &Components) -
         }
         // Workflow mutations are reserved even when the workflow is off, so
         // enabling it later can never clash.
-        for name in [n.create, n.update, n.delete, n.publish, n.unpublish, n.submit, n.approve, n.request_changes] {
+        for name in [
+            n.create,
+            n.update,
+            n.delete,
+            n.publish,
+            n.unpublish,
+            n.submit,
+            n.approve,
+            n.request_changes,
+        ] {
             if !mutations.insert(name.clone()) {
                 return clash("content type", &ct.api_id, "mutation", &name);
             }

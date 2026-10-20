@@ -25,8 +25,8 @@ use std::sync::Arc;
 use async_graphql::Variables;
 use http::request::Parts;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, JsonObject,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
+    JsonObject, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
@@ -113,7 +113,10 @@ impl Backend {
                     .send()
                     .await
                     .map_err(|e| format!("cannot reach the GraphQL endpoint: {e}"))?;
-                response.json::<Value>().await.map_err(|e| format!("invalid response from the server: {e}"))
+                response
+                    .json::<Value>()
+                    .await
+                    .map_err(|e| format!("invalid response from the server: {e}"))
             }
         }
     }
@@ -129,7 +132,10 @@ impl Backend {
                     .await
                     .and_then(reqwest::Response::error_for_status)
                     .map_err(|e| format!("cannot fetch the schema: {e}"))?;
-                response.text().await.map_err(|e| format!("cannot read the schema: {e}"))
+                response
+                    .text()
+                    .await
+                    .map_err(|e| format!("cannot read the schema: {e}"))
             }
         }
     }
@@ -177,7 +183,9 @@ impl GraphqlTools {
             Err(e) => return failure(format!("invalid arguments: {e}")),
         };
         if args.query.len() > MAX_QUERY_BYTES {
-            return failure(format!("the query is over the {MAX_QUERY_BYTES}-byte limit"));
+            return failure(format!(
+                "the query is over the {MAX_QUERY_BYTES}-byte limit"
+            ));
         }
         if args.variables.as_ref().is_some_and(|v| !v.is_object()) {
             return failure("`variables` must be a JSON object".to_string());
@@ -198,7 +206,11 @@ impl GraphqlTools {
                 text.len()
             ));
         }
-        if has_errors { failure(text) } else { success(text) }
+        if has_errors {
+            failure(text)
+        } else {
+            success(text)
+        }
     }
 }
 
@@ -237,7 +249,12 @@ fn principal_of(context: &RequestContext<RoleServer>) -> Principal {
 }
 
 fn object(value: Value) -> Arc<JsonObject> {
-    Arc::new(value.as_object().cloned().expect("tool schemas are objects"))
+    Arc::new(
+        value
+            .as_object()
+            .cloned()
+            .expect("tool schemas are objects"),
+    )
 }
 
 fn tool_list() -> Vec<Tool> {
@@ -315,7 +332,12 @@ impl ServerHandler for GraphqlTools {
         let result = match request.name.as_ref() {
             "get_schema" => self.get_schema(args).await,
             "graphql_query" => self.graphql_query(args, principal_of(&context)).await,
-            other => return Err(ErrorData::invalid_params(format!("unknown tool `{other}`"), None)),
+            other => {
+                return Err(ErrorData::invalid_params(
+                    format!("unknown tool `{other}`"),
+                    None,
+                ));
+            }
         };
         Ok(result.into())
     }
@@ -343,7 +365,9 @@ pub fn http_service(
 
 /// Serves MCP over stdin and stdout until the client disconnects.
 pub async fn run_stdio(api: RemoteApi) -> anyhow::Result<()> {
-    let server = GraphqlTools::new(Backend::Remote(api)).serve(rmcp::transport::stdio()).await?;
+    let server = GraphqlTools::new(Backend::Remote(api))
+        .serve(rmcp::transport::stdio())
+        .await?;
     server.waiting().await?;
     Ok(())
 }
@@ -369,7 +393,9 @@ fn definition_name(line: &str) -> Option<&str> {
 /// The SDL of one top-level definition, from its line to its closing `}`.
 fn type_definition(sdl: &str, name: &str) -> Option<String> {
     let lines: Vec<&str> = sdl.lines().collect();
-    let start = lines.iter().position(|l| definition_name(l) == Some(name))?;
+    let start = lines
+        .iter()
+        .position(|l| definition_name(l) == Some(name))?;
     let mut out = Vec::new();
     if lines[start].trim_end().ends_with('{') {
         for line in &lines[start..] {
@@ -392,8 +418,14 @@ mod tests {
 
     #[test]
     fn finds_one_type_only() {
-        assert_eq!(type_definition(SDL, "Post").unwrap(), "type Post {\n  title: String!\n  type: String\n}");
-        assert_eq!(type_definition(SDL, "PostInput").unwrap(), "input PostInput {\n  title: String\n}");
+        assert_eq!(
+            type_definition(SDL, "Post").unwrap(),
+            "type Post {\n  title: String!\n  type: String\n}"
+        );
+        assert_eq!(
+            type_definition(SDL, "PostInput").unwrap(),
+            "input PostInput {\n  title: String\n}"
+        );
         assert_eq!(type_definition(SDL, "Date").unwrap(), "scalar Date");
         assert!(type_definition(SDL, "Missing").is_none());
     }

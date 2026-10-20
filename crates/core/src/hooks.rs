@@ -98,7 +98,12 @@ pub struct SystemEvent {
 
 impl SystemEvent {
     pub fn new(event: impl Into<String>, data: Value, actor: &Actor) -> Self {
-        SystemEvent { event: event.into(), content_type: None, data, actor: actor.reference() }
+        SystemEvent {
+            event: event.into(),
+            content_type: None,
+            data,
+            actor: actor.reference(),
+        }
     }
 
     pub fn for_type(mut self, content_type: impl Into<String>) -> Self {
@@ -160,7 +165,10 @@ impl HookRegistry {
     }
 
     pub fn add(&self, hook: Arc<dyn Hook>) {
-        self.hooks.write().expect("hook registry poisoned").push(hook);
+        self.hooks
+            .write()
+            .expect("hook registry poisoned")
+            .push(hook);
     }
 
     /// Replaces all hooks whose name starts with `prefix` by `hooks`
@@ -177,7 +185,10 @@ impl HookRegistry {
     }
 
     pub fn names(&self) -> Vec<String> {
-        self.snapshot().iter().map(|h| h.name().to_string()).collect()
+        self.snapshot()
+            .iter()
+            .map(|h| h.name().to_string())
+            .collect()
     }
 
     /// Delivers a [`SystemEvent`] to every hook.
@@ -218,7 +229,11 @@ mod tests {
             if action == EntryAction::Delete {
                 return Ok(());
             }
-            let title = data.get("title").and_then(Value::as_str).unwrap_or_default().to_string();
+            let title = data
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             if title == "forbidden" {
                 return Err(CmsError::validation("title is forbidden"));
             }
@@ -236,24 +251,54 @@ mod tests {
         let cms = Cms::new(Arc::new(MemoryStorage::new()));
         let hook = Arc::new(Upper(Mutex::new(vec![])));
         cms.hooks().add(hook.clone());
-        cms.create_content_type(ContentTypeDef { workflow: false,
-            api_id: "Note".into(),
-            plural_api_id: None,
-            description: None,
-            fields: vec![FieldDef { name: "title".into(), field_type: FieldType::text(), required: true, description: None }],
-        }, &Actor::system())
+        cms.create_content_type(
+            ContentTypeDef {
+                workflow: false,
+                api_id: "Note".into(),
+                plural_api_id: None,
+                description: None,
+                fields: vec![FieldDef {
+                    name: "title".into(),
+                    field_type: FieldType::text(),
+                    required: true,
+                    description: None,
+                }],
+            },
+            &Actor::system(),
+        )
         .await
         .unwrap();
         let data = |t: &str| json!({ "title": t }).as_object().unwrap().clone();
-        let e = cms.create_entry("Note", data("hi"), &Actor::system()).await.unwrap();
+        let e = cms
+            .create_entry("Note", data("hi"), &Actor::system())
+            .await
+            .unwrap();
         assert_eq!(e.draft["title"], "HI");
-        assert!(matches!(cms.create_entry("Note", data("forbidden"), &Actor::system()).await, Err(CmsError::Validation(_))));
-        cms.publish_entry("Note", e.id, &Actor::system()).await.unwrap();
-        cms.delete_entry("Note", e.id, &Actor::system()).await.unwrap();
-        assert_eq!(*hook.0.lock().unwrap(), vec![EntryAction::Create, EntryAction::Publish, EntryAction::Delete]);
+        assert!(matches!(
+            cms.create_entry("Note", data("forbidden"), &Actor::system())
+                .await,
+            Err(CmsError::Validation(_))
+        ));
+        cms.publish_entry("Note", e.id, &Actor::system())
+            .await
+            .unwrap();
+        cms.delete_entry("Note", e.id, &Actor::system())
+            .await
+            .unwrap();
+        assert_eq!(
+            *hook.0.lock().unwrap(),
+            vec![
+                EntryAction::Create,
+                EntryAction::Publish,
+                EntryAction::Delete
+            ]
+        );
 
         cms.hooks().replace_prefixed("test:", vec![]);
-        let e = cms.create_entry("Note", data("forbidden"), &Actor::system()).await.unwrap();
+        let e = cms
+            .create_entry("Note", data("forbidden"), &Actor::system())
+            .await
+            .unwrap();
         assert_eq!(e.draft["title"], "forbidden");
     }
 }

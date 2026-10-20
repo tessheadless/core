@@ -6,9 +6,9 @@
 //! comparison is guarded by the JSON type of the field, so its result matches
 //! `tess_core::query::execute_in_memory` exactly (checked by the testkit).
 
-use tess_core::query::{Direction, Filter, Op, SortKey};
 use sea_query::{Expr, Order};
 use serde_json::Value;
+use tess_core::query::{Direction, Filter, Op, SortKey};
 
 use crate::dialect::{Dialect, Frag};
 
@@ -25,10 +25,18 @@ pub(crate) fn where_expr(dialect: Dialect, col: &str, filter: &Filter) -> Expr {
 fn push_filter(f: &mut Frag, col: &str, filter: &Filter) {
     match filter {
         Filter::And(fs) | Filter::Or(fs) if fs.is_empty() => {
-            f.push(if matches!(filter, Filter::And(_)) { TRUE } else { FALSE });
+            f.push(if matches!(filter, Filter::And(_)) {
+                TRUE
+            } else {
+                FALSE
+            });
         }
         Filter::And(fs) | Filter::Or(fs) => {
-            let sep = if matches!(filter, Filter::And(_)) { " AND " } else { " OR " };
+            let sep = if matches!(filter, Filter::And(_)) {
+                " AND "
+            } else {
+                " OR "
+            };
             f.push("(");
             for (i, sub) in fs.iter().enumerate() {
                 if i > 0 {
@@ -198,7 +206,11 @@ fn push_cmp(f: &mut Frag, col: &str, field: &str, op: Op, value: &Value) {
 pub(crate) fn order_exprs(dialect: Dialect, col: &str, keys: &[SortKey]) -> Vec<(Expr, Order)> {
     let mut out = Vec::new();
     for key in keys {
-        let order = if key.direction == Direction::Asc { Order::Asc } else { Order::Desc };
+        let order = if key.direction == Direction::Asc {
+            Order::Asc
+        } else {
+            Order::Desc
+        };
         let field = key.field.as_str();
 
         let mut rank = Frag::new(dialect);
@@ -211,8 +223,11 @@ pub(crate) fn order_exprs(dialect: Dialect, col: &str, keys: &[SortKey]) -> Vec<
         out.push((rank.into_expr(), order.clone()));
 
         type Accessor = fn(Dialect, &mut Frag, &str, &str);
-        let accessors: [(&str, Accessor); 3] =
-            [("number", Dialect::number), ("string", Dialect::text), ("boolean", Dialect::boolean)];
+        let accessors: [(&str, Accessor); 3] = [
+            ("number", Dialect::number),
+            ("string", Dialect::text),
+            ("boolean", Dialect::boolean),
+        ];
         for (ty, accessor) in accessors {
             let mut e = Frag::new(dialect);
             e.push("(CASE WHEN ");

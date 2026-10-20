@@ -23,11 +23,13 @@ mod formats;
 mod icu;
 mod service;
 
-pub use delivery::{AzureAuth, DeliveryInput, DeliveryTarget, DeliveryUpdate, PublishReport, StorageKind};
+pub use delivery::{
+    AzureAuth, DeliveryInput, DeliveryTarget, DeliveryUpdate, PublishReport, StorageKind,
+};
 pub use formats::{ExportFile, ExportOptions, Format, ImportedKey, export, parse, zip_files};
 pub use service::{
-    I18N_EVENTS, I18nConfig, I18nService, I18nSettings, ImportInput, ImportMode, ImportReport, KeyFilter, KeyInput,
-    KeyUpdate, LanguageStats, SCOPE,
+    I18N_EVENTS, I18nConfig, I18nService, I18nSettings, ImportInput, ImportMode, ImportReport,
+    KeyFilter, KeyInput, KeyUpdate, LanguageStats, SCOPE,
 };
 
 use std::collections::BTreeMap;
@@ -56,7 +58,9 @@ pub struct Language {
 pub fn normalize_tag(tag: &str) -> Result<String> {
     let tag = tag.trim().replace('_', "-");
     if !LANG_TAG.is_match(&tag) {
-        return Err(CmsError::validation(format!("`{tag}` is not a valid language tag (e.g. en, fr-CA)")));
+        return Err(CmsError::validation(format!(
+            "`{tag}` is not a valid language tag (e.g. en, fr-CA)"
+        )));
     }
     let mut parts = tag.split('-');
     let mut out = parts.next().unwrap_or_default().to_ascii_lowercase();
@@ -79,16 +83,22 @@ pub fn check_namespace(ns: &str) -> Result<()> {
     if NAMESPACE.is_match(ns) {
         Ok(())
     } else {
-        Err(CmsError::validation(format!("namespace `{ns}`: use at most 64 letters, digits, `_` or `-`")))
+        Err(CmsError::validation(format!(
+            "namespace `{ns}`: use at most 64 letters, digits, `_` or `-`"
+        )))
     }
 }
 
 pub fn check_key_name(name: &str) -> Result<()> {
     if name.trim().is_empty() || name.chars().count() > 255 || name.chars().any(char::is_control) {
-        return Err(CmsError::validation("key names must have 1 to 255 characters, without control characters"));
+        return Err(CmsError::validation(
+            "key names must have 1 to 255 characters, without control characters",
+        ));
     }
     if name != name.trim() {
-        return Err(CmsError::validation(format!("key `{name}` starts or ends with spaces")));
+        return Err(CmsError::validation(format!(
+            "key `{name}` starts or ends with spaces"
+        )));
     }
     Ok(())
 }
@@ -101,7 +111,8 @@ pub enum TranslationState {
 }
 
 impl TranslationState {
-    pub const ALL: [TranslationState; 2] = [TranslationState::Translated, TranslationState::Reviewed];
+    pub const ALL: [TranslationState; 2] =
+        [TranslationState::Translated, TranslationState::Reviewed];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -160,7 +171,10 @@ impl TranslationKey {
 /// Stable id of a key: derived from its namespace and name, so a key can
 /// only exist once.
 pub fn key_id(namespace: &str, name: &str) -> String {
-    let digest = Sha256::new_with_prefix(namespace.as_bytes()).chain_update([0u8]).chain_update(name.as_bytes()).finalize();
+    let digest = Sha256::new_with_prefix(namespace.as_bytes())
+        .chain_update([0u8])
+        .chain_update(name.as_bytes())
+        .finalize();
     hex::encode(&digest[..16])
 }
 

@@ -7,11 +7,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use tess_core::{
-    Actor, Cms, CmsError, ContentType, ContentTypeDef, Entry, EntryAction, EntryEvent, FieldDef, FieldType, Hook,
-    Result,
-};
 use serde_json::{Map, Value, json};
+use tess_core::{
+    Actor, Cms, CmsError, ContentType, ContentTypeDef, Entry, EntryAction, EntryEvent, FieldDef,
+    FieldType, Hook, Result,
+};
 use uuid::Uuid;
 
 use crate::blob::{BlobStore, PresignedRequest};
@@ -27,7 +27,8 @@ pub fn asset_definition() -> ContentTypeDef {
         required,
         description: None,
     };
-    ContentTypeDef { workflow: false,
+    ContentTypeDef {
+        workflow: false,
         api_id: ASSET_TYPE.into(),
         plural_api_id: Some("assets".into()),
         description: Some("Uploaded file (built-in).".into()),
@@ -36,7 +37,13 @@ pub fn asset_definition() -> ContentTypeDef {
             f("mimeType", FieldType::text(), true),
             f("size", FieldType::Int, false),
             f("key", FieldType::text(), true),
-            f("status", FieldType::Enum { values: vec!["PENDING".into(), "READY".into()] }, true),
+            f(
+                "status",
+                FieldType::Enum {
+                    values: vec!["PENDING".into(), "READY".into()],
+                },
+                true,
+            ),
             f("alt", FieldType::text(), false),
             f("width", FieldType::Int, false),
             f("height", FieldType::Int, false),
@@ -81,9 +88,19 @@ fn new_key(file_name: &str) -> String {
     let hex: String = rnd.iter().map(|b| format!("{b:02x}")).collect();
     let mut name: String = file_name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || "._-".contains(c) { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || "._-".contains(c) {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
-    name = name.trim_matches(|c| c == '.' || c == '-').chars().take(100).collect();
+    name = name
+        .trim_matches(|c| c == '.' || c == '-')
+        .chars()
+        .take(100)
+        .collect();
     if name.is_empty() {
         name = "file".into();
     }
@@ -113,11 +130,17 @@ impl MediaService {
         match cms.content_type(ASSET_TYPE).await {
             Ok(_) => {}
             Err(CmsError::NotFound(_)) => {
-                cms.create_content_type(asset_definition(), &Actor::system()).await?;
+                cms.create_content_type(asset_definition(), &Actor::system())
+                    .await?;
             }
             Err(e) => return Err(e),
         }
-        cms.hooks().replace_prefixed("builtin:media", vec![Arc::new(MediaHook { blobs: self.blobs.clone() })]);
+        cms.hooks().replace_prefixed(
+            "builtin:media",
+            vec![Arc::new(MediaHook {
+                blobs: self.blobs.clone(),
+            })],
+        );
         Ok(())
     }
 
@@ -132,7 +155,14 @@ impl MediaService {
     }
 
     /// Stores a file received by the server and creates its (draft) asset.
-    pub async fn upload(&self, cms: &Cms, actor: &Actor, file_name: &str, mime_type: &str, data: Bytes) -> Result<Entry> {
+    pub async fn upload(
+        &self,
+        cms: &Cms,
+        actor: &Actor,
+        file_name: &str,
+        mime_type: &str,
+        data: Bytes,
+    ) -> Result<Entry> {
         actor.require_edit(&cms.content_type(ASSET_TYPE).await?)?;
         self.check_size(data.len() as u64)?;
         let key = new_key(file_name);
@@ -164,7 +194,11 @@ impl MediaService {
         actor.require_edit(&cms.content_type(ASSET_TYPE).await?)?;
         self.check_size(size)?;
         let key = new_key(file_name);
-        let Some(request) = self.blobs.presign_put(&key, mime_type, self.config.url_ttl).await? else {
+        let Some(request) = self
+            .blobs
+            .presign_put(&key, mime_type, self.config.url_ttl)
+            .await?
+        else {
             return Err(CmsError::validation(format!(
                 "the `{}` media store does not support direct uploads; POST the file to /media/upload",
                 self.blobs.name()
@@ -186,7 +220,11 @@ impl MediaService {
             .get_entry(ASSET_TYPE, id, tess_core::Stage::Draft)
             .await?
             .ok_or_else(|| CmsError::NotFound(format!("Asset `{id}`")))?;
-        let key = asset.draft.get("key").and_then(Value::as_str).unwrap_or_default();
+        let key = asset
+            .draft
+            .get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let Some(info) = self.blobs.head(key).await? else {
             return Err(CmsError::validation("the file has not been uploaded yet"));
         };
@@ -194,7 +232,13 @@ impl MediaService {
             let _ = self.blobs.delete(key).await;
             return Err(e);
         }
-        cms.update_entry(ASSET_TYPE, id, obj(json!({"size": info.size as i64, "status": "READY"})), actor).await
+        cms.update_entry(
+            ASSET_TYPE,
+            id,
+            obj(json!({"size": info.size as i64, "status": "READY"})),
+            actor,
+        )
+        .await
     }
 
     /// Where clients download a file from.
@@ -224,7 +268,11 @@ impl Hook for MediaHook {
         if event.action != EntryAction::Delete || event.content_type != ASSET_TYPE {
             return;
         }
-        let key = event.previous.as_ref().and_then(|e| e.draft.get("key")).and_then(Value::as_str);
+        let key = event
+            .previous
+            .as_ref()
+            .and_then(|e| e.draft.get("key"))
+            .and_then(Value::as_str);
         if let Some(key) = key
             && let Err(e) = self.blobs.delete(key).await
         {
@@ -246,19 +294,47 @@ mod tests {
     async fn upload_and_delete_with_filesystem_store() {
         let dir = tempfile::tempdir().unwrap();
         let cms = Cms::new(Arc::new(MemoryStorage::new()));
-        let media = MediaService::new(Arc::new(FsBlobStore::new(dir.path())), MediaConfig::default());
+        let media = MediaService::new(
+            Arc::new(FsBlobStore::new(dir.path())),
+            MediaConfig::default(),
+        );
         media.install(&cms).await.unwrap();
         media.install(&cms).await.unwrap(); // idempotent
 
-        let asset = media.upload(&cms, &Actor::system(), "My photo (1).JPG", "image/jpeg", Bytes::from_static(b"jpeg")).await.unwrap();
+        let asset = media
+            .upload(
+                &cms,
+                &Actor::system(),
+                "My photo (1).JPG",
+                "image/jpeg",
+                Bytes::from_static(b"jpeg"),
+            )
+            .await
+            .unwrap();
         let key = asset.draft["key"].as_str().unwrap().to_string();
-        assert!(key.starts_with("assets/") && key.ends_with("/My-photo--1-.JPG"), "{key}");
-        assert_eq!(media.blobs().get(&key).await.unwrap().unwrap(), Bytes::from_static(b"jpeg"));
-        assert_eq!(media.url(&key).await.unwrap(), format!("/media/files/{key}"));
+        assert!(
+            key.starts_with("assets/") && key.ends_with("/My-photo--1-.JPG"),
+            "{key}"
+        );
+        assert_eq!(
+            media.blobs().get(&key).await.unwrap().unwrap(),
+            Bytes::from_static(b"jpeg")
+        );
+        assert_eq!(
+            media.url(&key).await.unwrap(),
+            format!("/media/files/{key}")
+        );
         // Direct uploads need a presigning store.
-        assert!(media.create_upload(&cms, &Actor::system(), "a.txt", "text/plain", 1).await.is_err());
+        assert!(
+            media
+                .create_upload(&cms, &Actor::system(), "a.txt", "text/plain", 1)
+                .await
+                .is_err()
+        );
 
-        cms.delete_entry(ASSET_TYPE, asset.id, &Actor::system()).await.unwrap();
+        cms.delete_entry(ASSET_TYPE, asset.id, &Actor::system())
+            .await
+            .unwrap();
         assert!(media.blobs().get(&key).await.unwrap().is_none());
     }
 
@@ -266,10 +342,21 @@ mod tests {
     async fn size_limit() {
         let dir = tempfile::tempdir().unwrap();
         let cms = Cms::new(Arc::new(MemoryStorage::new()));
-        let config = MediaConfig { max_upload_bytes: 3, ..MediaConfig::default() };
+        let config = MediaConfig {
+            max_upload_bytes: 3,
+            ..MediaConfig::default()
+        };
         let media = MediaService::new(Arc::new(FsBlobStore::new(dir.path())), config);
         media.install(&cms).await.unwrap();
-        let res = media.upload(&cms, &Actor::system(), "a", "text/plain", Bytes::from_static(b"four")).await;
+        let res = media
+            .upload(
+                &cms,
+                &Actor::system(),
+                "a",
+                "text/plain",
+                Bytes::from_static(b"four"),
+            )
+            .await;
         assert!(matches!(res, Err(CmsError::Validation(_))));
     }
 }

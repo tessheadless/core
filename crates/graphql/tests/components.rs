@@ -26,7 +26,11 @@ fn service() -> GraphqlService {
         ttl: Duration::from_secs(3600),
     })
     .unwrap();
-    GraphqlService::new(Arc::new(MemoryStorage::new()), codec, SchemaConfig::default())
+    GraphqlService::new(
+        Arc::new(MemoryStorage::new()),
+        codec,
+        SchemaConfig::default(),
+    )
 }
 
 fn admin() -> Principal {
@@ -34,7 +38,8 @@ fn admin() -> Principal {
 }
 
 async fn run(svc: &GraphqlService, who: &Principal, query: &str, vars: Value) -> Value {
-    let req = async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
+    let req =
+        async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
     serde_json::to_value(svc.execute(req, who.clone()).await).unwrap()
 }
 
@@ -48,7 +53,10 @@ async fn error(svc: &GraphqlService, query: &str, vars: Value) -> (String, Strin
     let res = run(svc, &admin(), query, vars).await;
     let e = &res["errors"][0];
     (
-        e["extensions"]["code"].as_str().unwrap_or_default().to_string(),
+        e["extensions"]["code"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
         e["message"].as_str().unwrap_or_default().to_string(),
     )
 }
@@ -102,7 +110,13 @@ async fn components_dynamic_zones_and_new_types() {
     assert_eq!(fields[5]["minLength"], 10);
     assert_eq!(fields[7]["components"], json!(["Hero", "Link"]));
 
-    let author = ok(&svc, &a, r#"mutation { createAuthor(data: {name: "Ada Example"}) { id } }"#, json!({})).await;
+    let author = ok(
+        &svc,
+        &a,
+        r#"mutation { createAuthor(data: {name: "Ada Example"}) { id } }"#,
+        json!({}),
+    )
+    .await;
     let author_id = author["createAuthor"]["id"].clone();
     let create = r#"mutation($d: PageCreateInput!) { createPage(data: $d) {
         id title body day code
@@ -132,12 +146,20 @@ async fn components_dynamic_zones_and_new_types() {
     assert_eq!(page["links"][0]["author"]["name"], "Ada Example");
     assert_eq!(page["blocks"][0]["__typename"], "Hero");
     assert_eq!(page["blocks"][0]["cta"]["author"]["name"], "Ada Example");
-    assert_eq!(page["blocks"][1], json!({"__typename": "Link", "label": "More"}));
+    assert_eq!(
+        page["blocks"][1],
+        json!({"__typename": "Link", "label": "More"})
+    );
     assert_eq!(page["code"].as_str().unwrap().len(), 36, "UUID generated");
     let id = page["id"].clone();
 
     // Passwords: write-only, verifiable.
-    let (code, _) = error(&svc, "query($id: ID!) { page(id: $id, stage: DRAFT) { secret } }", json!({"id": id})).await;
+    let (code, _) = error(
+        &svc,
+        "query($id: ID!) { page(id: $id, stage: DRAFT) { secret } }",
+        json!({"id": id}),
+    )
+    .await;
     assert_eq!(code, "", "unknown field `secret` is a validation error");
     let v = ok(
         &svc,
@@ -151,15 +173,29 @@ async fn components_dynamic_zones_and_new_types() {
 
     // Validation errors with paths.
     for (data, needle) in [
-        (json!({"title": "x", "body": "<div>no html</div>"}), "contains HTML"),
+        (
+            json!({"title": "x", "body": "<div>no html</div>"}),
+            "contains HTML",
+        ),
         (json!({"title": "x", "email": "nope"}), "format"),
         (json!({"title": "x".repeat(81)}), "limited to 80"),
         (json!({"title": "x", "day": "18/10/2026"}), "a date"),
         (json!({"title": "x", "secret": "short"}), "at least 10"),
-        (json!({"title": "x", "links": [{"label": "x", "url": "ftp://x"}]}), "links[0].url"),
-        (json!({"title": "x", "blocks": [{"Hero": {"title": "a"}, "Link": {"label": "b"}}]}), "exactly one"),
+        (
+            json!({"title": "x", "links": [{"label": "x", "url": "ftp://x"}]}),
+            "links[0].url",
+        ),
+        (
+            json!({"title": "x", "blocks": [{"Hero": {"title": "a"}, "Link": {"label": "b"}}]}),
+            "exactly one",
+        ),
     ] {
-        let (code, msg) = error(&svc, "mutation($d: PageCreateInput!) { createPage(data: $d) { id } }", json!({"d": data})).await;
+        let (code, msg) = error(
+            &svc,
+            "mutation($d: PageCreateInput!) { createPage(data: $d) { id } }",
+            json!({"d": data}),
+        )
+        .await;
         assert_eq!(code, "BAD_USER_INPUT", "{msg}");
         assert!(msg.contains(needle), "{needle}: {msg}");
     }
@@ -169,11 +205,22 @@ async fn components_dynamic_zones_and_new_types() {
     assert_eq!(f, json!({"a": {"total": 1}, "b": {"total": 1}}));
 
     // Component management.
-    let (code, msg) = error(&svc, r#"mutation { deleteComponent(apiId: "Link") }"#, json!({})).await;
+    let (code, msg) = error(
+        &svc,
+        r#"mutation { deleteComponent(apiId: "Link") }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(code, "CONFLICT", "{msg}");
     let (code, _) = error(&svc, r#"mutation { createComponent(input: {apiId: "Page", fields: [{name: "a", type: TEXT}]}) { apiId } }"#, json!({})).await;
     assert_eq!(code, "CONFLICT");
-    let list = ok(&svc, &a, "{ components { apiId description fields { name type } } }", json!({})).await;
+    let list = ok(
+        &svc,
+        &a,
+        "{ components { apiId description fields { name type } } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(list["components"].as_array().unwrap().len(), 2);
     // Adding a field to a component is immediately available everywhere.
     ok(
@@ -186,6 +233,12 @@ async fn components_dynamic_zones_and_new_types() {
         json!({}),
     )
     .await;
-    let d = ok(&svc, &a, "{ pages(stage: DRAFT) { items { blocks { ... on Hero { subtitle } } } } }", json!({})).await;
+    let d = ok(
+        &svc,
+        &a,
+        "{ pages(stage: DRAFT) { items { blocks { ... on Hero { subtitle } } } } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(d["pages"]["items"][0]["blocks"][0]["subtitle"], Value::Null);
 }

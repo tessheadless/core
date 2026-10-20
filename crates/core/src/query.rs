@@ -41,7 +41,11 @@ pub enum Filter {
 
 impl Filter {
     pub fn cmp(field: impl Into<String>, op: Op, value: impl Into<Value>) -> Self {
-        Filter::Cmp { field: field.into(), op, value: value.into() }
+        Filter::Cmp {
+            field: field.into(),
+            op,
+            value: value.into(),
+        }
     }
 }
 
@@ -70,17 +74,29 @@ pub struct EntryQuery {
 
 impl EntryQuery {
     pub fn new(stage: Stage) -> Self {
-        EntryQuery { stage, filter: None, sort: Vec::new(), limit: 100, offset: 0 }
+        EntryQuery {
+            stage,
+            filter: None,
+            sort: Vec::new(),
+            limit: 100,
+            offset: 0,
+        }
     }
 
     /// Sort keys with the default (`createdAt`) and the `id` tie-breaker applied.
     pub fn effective_sort(&self) -> Vec<SortKey> {
         let mut keys = self.sort.clone();
         if keys.is_empty() {
-            keys.push(SortKey { field: "createdAt".into(), direction: Direction::Asc });
+            keys.push(SortKey {
+                field: "createdAt".into(),
+                direction: Direction::Asc,
+            });
         }
         if !keys.iter().any(|k| k.field == "id") {
-            keys.push(SortKey { field: "id".into(), direction: Direction::Asc });
+            keys.push(SortKey {
+                field: "id".into(),
+                direction: Direction::Asc,
+            });
         }
         keys
     }
@@ -103,7 +119,12 @@ pub fn execute_in_memory(entries: impl IntoIterator<Item = Entry>, query: &Entry
     let sort = query.effective_sort();
     matched.sort_by(|(a, _), (b, _)| compare_docs(a, b, &sort));
     let total = matched.len() as u64;
-    let items = matched.into_iter().skip(query.offset).take(query.limit).map(|(_, e)| e).collect();
+    let items = matched
+        .into_iter()
+        .skip(query.offset)
+        .take(query.limit)
+        .map(|(_, e)| e)
+        .collect();
     Page { items, total }
 }
 
@@ -124,13 +145,23 @@ fn compare(actual: &Value, op: Op, expected: &Value) -> bool {
     match op {
         Op::Eq => json_eq(actual, expected),
         Op::Ne => !json_eq(actual, expected),
-        Op::In => expected.as_array().is_some_and(|xs| xs.iter().any(|x| json_eq(actual, x))),
-        Op::NotIn => !expected.as_array().is_some_and(|xs| xs.iter().any(|x| json_eq(actual, x))),
+        Op::In => expected
+            .as_array()
+            .is_some_and(|xs| xs.iter().any(|x| json_eq(actual, x))),
+        Op::NotIn => !expected
+            .as_array()
+            .is_some_and(|xs| xs.iter().any(|x| json_eq(actual, x))),
         Op::Lt => same_type_cmp(actual, expected) == Some(Ordering::Less),
-        Op::Lte => matches!(same_type_cmp(actual, expected), Some(Ordering::Less | Ordering::Equal)),
+        Op::Lte => matches!(
+            same_type_cmp(actual, expected),
+            Some(Ordering::Less | Ordering::Equal)
+        ),
         Op::Gt => same_type_cmp(actual, expected) == Some(Ordering::Greater),
         Op::Gte => {
-            matches!(same_type_cmp(actual, expected), Some(Ordering::Greater | Ordering::Equal))
+            matches!(
+                same_type_cmp(actual, expected),
+                Some(Ordering::Greater | Ordering::Equal)
+            )
         }
         Op::Contains | Op::StartsWith | Op::EndsWith => match (actual, expected) {
             (Value::String(a), Value::String(e)) => match op {
@@ -174,7 +205,9 @@ fn sort_cmp(a: &Value, b: &Value) -> Ordering {
             Value::Object(_) => 5,
         }
     }
-    rank(a).cmp(&rank(b)).then_with(|| same_type_cmp(a, b).unwrap_or(Ordering::Equal))
+    rank(a)
+        .cmp(&rank(b))
+        .then_with(|| same_type_cmp(a, b).unwrap_or(Ordering::Equal))
 }
 
 fn compare_docs(a: &Map<String, Value>, b: &Map<String, Value>, sort: &[SortKey]) -> Ordering {
@@ -182,7 +215,11 @@ fn compare_docs(a: &Map<String, Value>, b: &Map<String, Value>, sort: &[SortKey]
         let va = a.get(&key.field).unwrap_or(&Value::Null);
         let vb = b.get(&key.field).unwrap_or(&Value::Null);
         let ord = sort_cmp(va, vb);
-        let ord = if key.direction == Direction::Desc { ord.reverse() } else { ord };
+        let ord = if key.direction == Direction::Desc {
+            ord.reverse()
+        } else {
+            ord
+        };
         if ord != Ordering::Equal {
             return ord;
         }
@@ -221,7 +258,10 @@ mod tests {
         let f = Filter::And(vec![
             Filter::cmp("a", Op::StartsWith, "he"),
             Filter::Not(Box::new(Filter::cmp("n", Op::Gt, 10))),
-            Filter::Or(vec![Filter::cmp("n", Op::Eq, 5), Filter::cmp("n", Op::Eq, 6)]),
+            Filter::Or(vec![
+                Filter::cmp("n", Op::Eq, 5),
+                Filter::cmp("n", Op::Eq, 6),
+            ]),
         ]);
         assert!(matches(&f, &d));
     }

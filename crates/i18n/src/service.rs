@@ -14,7 +14,8 @@ use tess_core::{Actor, Cms, CmsError, HookRegistry, Result, Role, Storage, Syste
 
 use crate::formats::{self, ExportFile, ExportOptions, Format};
 use crate::{
-    Language, Translation, TranslationKey, TranslationState, check_key_name, check_namespace, key_id, normalize_tag,
+    Language, Translation, TranslationKey, TranslationState, check_key_name, check_namespace,
+    key_id, normalize_tag,
 };
 
 /// Pseudo content type limiting Contributors and Reviewers: users whose scope
@@ -48,7 +49,10 @@ pub struct I18nConfig {
 
 impl Default for I18nConfig {
     fn default() -> Self {
-        I18nConfig { inline: false, debounce: Duration::from_secs(3) }
+        I18nConfig {
+            inline: false,
+            debounce: Duration::from_secs(3),
+        }
     }
 }
 
@@ -66,7 +70,11 @@ pub struct I18nSettings {
 
 impl Default for I18nSettings {
     fn default() -> Self {
-        I18nSettings { public: true, served_states: TranslationState::ALL.to_vec(), fallback_to_base: true }
+        I18nSettings {
+            public: true,
+            served_states: TranslationState::ALL.to_vec(),
+            fallback_to_base: true,
+        }
     }
 }
 
@@ -175,11 +183,19 @@ pub(crate) fn can_review(a: &Actor) -> bool {
 }
 
 fn require_edit(a: &Actor) -> Result<()> {
-    if can_edit(a) { Ok(()) } else { Err(forbidden("you cannot edit translations")) }
+    if can_edit(a) {
+        Ok(())
+    } else {
+        Err(forbidden("you cannot edit translations"))
+    }
 }
 
 fn clean_tags(tags: Vec<String>) -> Result<Vec<String>> {
-    let set: BTreeSet<String> = tags.into_iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
+    let set: BTreeSet<String> = tags
+        .into_iter()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect();
     if set.iter().any(|t| t.chars().count() > 50) {
         return Err(CmsError::validation("tags have at most 50 characters"));
     }
@@ -189,14 +205,18 @@ fn clean_tags(tags: Vec<String>) -> Result<Vec<String>> {
 fn clean_description(d: Option<String>) -> Result<Option<String>> {
     let d = d.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
     if d.as_ref().is_some_and(|d| d.chars().count() > 2000) {
-        return Err(CmsError::validation("descriptions have at most 2000 characters"));
+        return Err(CmsError::validation(
+            "descriptions have at most 2000 characters",
+        ));
     }
     Ok(d)
 }
 
 fn check_text(text: &str) -> Result<()> {
     if text.len() > 100_000 {
-        return Err(CmsError::validation("translations have at most 100 000 bytes"));
+        return Err(CmsError::validation(
+            "translations have at most 100 000 bytes",
+        ));
     }
     Ok(())
 }
@@ -235,7 +255,11 @@ impl I18nService {
         }
     }
 
-    pub async fn update_settings(&self, settings: I18nSettings, actor: &Actor) -> Result<I18nSettings> {
+    pub async fn update_settings(
+        &self,
+        settings: I18nSettings,
+        actor: &Actor,
+    ) -> Result<I18nSettings> {
         actor.require_admin()?;
         let v = serde_json::to_value(&settings).map_err(CmsError::storage)?;
         self.storage.put_setting(SETTINGS_KEY, &v).await?;
@@ -260,19 +284,35 @@ impl I18nService {
         self.storage.put_setting(LANGUAGES_KEY, &v).await
     }
 
-    pub async fn add_language(self: &Arc<Self>, tag: &str, name: &str, base: bool, actor: &Actor) -> Result<Language> {
+    pub async fn add_language(
+        self: &Arc<Self>,
+        tag: &str,
+        name: &str,
+        base: bool,
+        actor: &Actor,
+    ) -> Result<Language> {
         actor.require_admin()?;
         let _guard = self.write_lock.lock().await;
         let tag = normalize_tag(tag)?;
         let mut langs = self.languages().await?;
         if langs.iter().any(|l| l.tag == tag) {
-            return Err(CmsError::Conflict(format!("language `{tag}` already exists")));
+            return Err(CmsError::Conflict(format!(
+                "language `{tag}` already exists"
+            )));
         }
         if base {
             langs.iter_mut().for_each(|l| l.base = false);
         }
-        let name = if name.trim().is_empty() { tag.clone() } else { name.trim().to_string() };
-        let lang = Language { tag, name, base: base || langs.is_empty() };
+        let name = if name.trim().is_empty() {
+            tag.clone()
+        } else {
+            name.trim().to_string()
+        };
+        let lang = Language {
+            tag,
+            name,
+            base: base || langs.is_empty(),
+        };
         langs.push(lang.clone());
         self.save_languages(langs).await?;
         self.emit("i18n.language.create", json!(lang), actor).await;
@@ -296,7 +336,9 @@ impl I18nService {
         if base == Some(true) {
             langs.iter_mut().for_each(|l| l.base = l.tag == tag);
         } else if base == Some(false) && langs.iter().any(|l| l.tag == tag && l.base) {
-            return Err(CmsError::validation("make another language the base language instead"));
+            return Err(CmsError::validation(
+                "make another language the base language instead",
+            ));
         }
         let lang = langs.iter_mut().find(|l| l.tag == tag).expect("checked");
         if let Some(n) = name.filter(|n| !n.trim().is_empty()) {
@@ -318,7 +360,9 @@ impl I18nService {
             return Err(CmsError::NotFound(format!("language `{tag}`")));
         };
         if langs[pos].base && langs.len() > 1 {
-            return Err(CmsError::validation("make another language the base language before removing this one"));
+            return Err(CmsError::validation(
+                "make another language the base language before removing this one",
+            ));
         }
         langs.remove(pos);
         for mut key in self.load_keys().await? {
@@ -328,7 +372,8 @@ impl I18nService {
         }
         self.save_languages(langs).await?;
         self.invalidate();
-        self.emit("i18n.language.delete", json!({ "tag": tag }), actor).await;
+        self.emit("i18n.language.delete", json!({ "tag": tag }), actor)
+            .await;
         self.after_change().await;
         Ok(())
     }
@@ -338,7 +383,9 @@ impl I18nService {
         if self.languages().await?.iter().any(|l| l.tag == tag) {
             Ok(tag)
         } else {
-            Err(CmsError::validation(format!("language `{tag}` is not configured")))
+            Err(CmsError::validation(format!(
+                "language `{tag}` is not configured"
+            )))
         }
     }
 
@@ -374,7 +421,9 @@ impl I18nService {
 
     async fn save_key(&self, key: &TranslationKey) -> Result<()> {
         let v = serde_json::to_value(key).map_err(CmsError::storage)?;
-        self.storage.put_setting(&format!("{KEYS_PREFIX}{}", key.id()), &v).await
+        self.storage
+            .put_setting(&format!("{KEYS_PREFIX}{}", key.id()), &v)
+            .await
     }
 
     async fn stored_key(&self, id: &str) -> Result<TranslationKey> {
@@ -394,21 +443,45 @@ impl I18nService {
     }
 
     pub async fn namespaces(&self) -> Result<Vec<String>> {
-        let mut all: Vec<String> = self.all_keys().await?.iter().map(|k| k.namespace.clone()).collect();
+        let mut all: Vec<String> = self
+            .all_keys()
+            .await?
+            .iter()
+            .map(|k| k.namespace.clone())
+            .collect();
         all.dedup();
         Ok(all)
     }
 
     pub async fn tags(&self) -> Result<Vec<String>> {
-        let set: BTreeSet<String> = self.all_keys().await?.iter().flat_map(|k| k.tags.iter().cloned()).collect();
+        let set: BTreeSet<String> = self
+            .all_keys()
+            .await?
+            .iter()
+            .flat_map(|k| k.tags.iter().cloned())
+            .collect();
         Ok(set.into_iter().collect())
     }
 
     /// Filtered, paginated keys and the total number of matches.
-    pub async fn keys(&self, filter: &KeyFilter, offset: usize, limit: usize) -> Result<(Vec<TranslationKey>, usize)> {
+    pub async fn keys(
+        &self,
+        filter: &KeyFilter,
+        offset: usize,
+        limit: usize,
+    ) -> Result<(Vec<TranslationKey>, usize)> {
         let all = self.all_keys().await?;
-        let base = self.languages().await?.into_iter().find(|l| l.base).map(|l| l.tag);
-        let search = filter.search.as_ref().map(|s| s.to_lowercase()).filter(|s| !s.is_empty());
+        let base = self
+            .languages()
+            .await?
+            .into_iter()
+            .find(|l| l.base)
+            .map(|l| l.tag);
+        let search = filter
+            .search
+            .as_ref()
+            .map(|s| s.to_lowercase())
+            .filter(|s| !s.is_empty());
         let lang = filter.language.as_deref().map(normalize_tag).transpose()?;
         let langs = self.languages().await?;
         let matches_state = |k: &TranslationKey, wanted: &str| {
@@ -419,24 +492,39 @@ impl I18nService {
             };
             match &lang {
                 Some(l) => check(l),
-                None => langs.iter().filter(|l| Some(&l.tag) != base.as_ref()).any(|l| check(&l.tag)),
+                None => langs
+                    .iter()
+                    .filter(|l| Some(&l.tag) != base.as_ref())
+                    .any(|l| check(&l.tag)),
             }
         };
         let hits: Vec<&TranslationKey> = all
             .iter()
-            .filter(|k| filter.namespace.as_ref().is_none_or(|ns| &k.namespace == ns))
+            .filter(|k| {
+                filter
+                    .namespace
+                    .as_ref()
+                    .is_none_or(|ns| &k.namespace == ns)
+            })
             .filter(|k| filter.tag.as_ref().is_none_or(|t| k.tags.contains(t)))
             .filter(|k| filter.state.as_deref().is_none_or(|s| matches_state(k, s)))
             .filter(|k| {
                 search.as_ref().is_none_or(|s| {
                     k.name.to_lowercase().contains(s)
-                        || k.description.as_ref().is_some_and(|d| d.to_lowercase().contains(s))
-                        || k.translations.values().any(|t| t.text.to_lowercase().contains(s))
+                        || k.description
+                            .as_ref()
+                            .is_some_and(|d| d.to_lowercase().contains(s))
+                        || k.translations
+                            .values()
+                            .any(|t| t.text.to_lowercase().contains(s))
                 })
             })
             .collect();
         let total = hits.len();
-        Ok((hits.into_iter().skip(offset).take(limit).cloned().collect(), total))
+        Ok((
+            hits.into_iter().skip(offset).take(limit).cloned().collect(),
+            total,
+        ))
     }
 
     pub async fn stats(&self) -> Result<Vec<LanguageStats>> {
@@ -446,18 +534,29 @@ impl I18nService {
             .await?
             .into_iter()
             .map(|l| {
-                let states: Vec<_> = keys.iter().filter_map(|k| k.translations.get(&l.tag)).map(|t| t.state).collect();
+                let states: Vec<_> = keys
+                    .iter()
+                    .filter_map(|k| k.translations.get(&l.tag))
+                    .map(|t| t.state)
+                    .collect();
                 LanguageStats {
                     total: keys.len() as u32,
                     translated: states.len() as u32,
-                    reviewed: states.iter().filter(|s| **s == TranslationState::Reviewed).count() as u32,
+                    reviewed: states
+                        .iter()
+                        .filter(|s| **s == TranslationState::Reviewed)
+                        .count() as u32,
                     language: l.tag,
                 }
             })
             .collect())
     }
 
-    pub async fn create_key(self: &Arc<Self>, input: KeyInput, actor: &Actor) -> Result<TranslationKey> {
+    pub async fn create_key(
+        self: &Arc<Self>,
+        input: KeyInput,
+        actor: &Actor,
+    ) -> Result<TranslationKey> {
         require_edit(actor)?;
         let _guard = self.write_lock.lock().await;
         let key = self.new_key(input, actor).await?;
@@ -471,8 +570,19 @@ impl I18nService {
     async fn new_key(&self, input: KeyInput, actor: &Actor) -> Result<TranslationKey> {
         check_key_name(&input.name)?;
         check_namespace(&input.namespace)?;
-        if self.storage.get_setting(&format!("{KEYS_PREFIX}{}", key_id(&input.namespace, &input.name))).await?.is_some() {
-            return Err(CmsError::Conflict(format!("key `{}` already exists", input.name)));
+        if self
+            .storage
+            .get_setting(&format!(
+                "{KEYS_PREFIX}{}",
+                key_id(&input.namespace, &input.name)
+            ))
+            .await?
+            .is_some()
+        {
+            return Err(CmsError::Conflict(format!(
+                "key `{}` already exists",
+                input.name
+            )));
         }
         let ts = format_ts(now());
         let mut translations = BTreeMap::new();
@@ -502,7 +612,12 @@ impl I18nService {
     }
 
     /// Renaming or moving a key changes its id.
-    pub async fn update_key(self: &Arc<Self>, id: &str, update: KeyUpdate, actor: &Actor) -> Result<TranslationKey> {
+    pub async fn update_key(
+        self: &Arc<Self>,
+        id: &str,
+        update: KeyUpdate,
+        actor: &Actor,
+    ) -> Result<TranslationKey> {
         require_edit(actor)?;
         let _guard = self.write_lock.lock().await;
         let mut key = self.stored_key(id).await?;
@@ -526,11 +641,21 @@ impl I18nService {
         key.updated_at = format_ts(now());
         let new_id = key.id();
         if new_id != id {
-            if self.storage.get_setting(&format!("{KEYS_PREFIX}{new_id}")).await?.is_some() {
-                return Err(CmsError::Conflict(format!("key `{}` already exists", key.name)));
+            if self
+                .storage
+                .get_setting(&format!("{KEYS_PREFIX}{new_id}"))
+                .await?
+                .is_some()
+            {
+                return Err(CmsError::Conflict(format!(
+                    "key `{}` already exists",
+                    key.name
+                )));
             }
             self.save_key(&key).await?;
-            self.storage.delete_setting(&format!("{KEYS_PREFIX}{id}")).await?;
+            self.storage
+                .delete_setting(&format!("{KEYS_PREFIX}{id}"))
+                .await?;
         } else {
             self.save_key(&key).await?;
         }
@@ -546,7 +671,12 @@ impl I18nService {
     /// when a key of the same name already exists there, or when two moved
     /// keys share a name. Returns how many keys moved (those already in
     /// `namespace` are left unchanged).
-    pub async fn move_keys(self: &Arc<Self>, ids: &[String], namespace: &str, actor: &Actor) -> Result<u32> {
+    pub async fn move_keys(
+        self: &Arc<Self>,
+        ids: &[String],
+        namespace: &str,
+        actor: &Actor,
+    ) -> Result<u32> {
         require_edit(actor)?;
         check_namespace(namespace)?;
         let _guard = self.write_lock.lock().await;
@@ -560,7 +690,11 @@ impl I18nService {
             }
             let new_id = key_id(namespace, &key.name);
             if !names.insert(key.name.clone())
-                || self.storage.get_setting(&format!("{KEYS_PREFIX}{new_id}")).await?.is_some()
+                || self
+                    .storage
+                    .get_setting(&format!("{KEYS_PREFIX}{new_id}"))
+                    .await?
+                    .is_some()
             {
                 conflicts.push(key.name.clone());
             }
@@ -569,7 +703,11 @@ impl I18nService {
         if !conflicts.is_empty() {
             return Err(CmsError::Conflict(format!(
                 "namespace `{namespace}` already has key(s) named {}",
-                conflicts.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ")
+                conflicts
+                    .iter()
+                    .map(|n| format!("`{n}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )));
         }
         let ts = format_ts(now());
@@ -577,7 +715,9 @@ impl I18nService {
             key.namespace = namespace.to_string();
             key.updated_at = ts.clone();
             self.save_key(key).await?;
-            self.storage.delete_setting(&format!("{KEYS_PREFIX}{id}")).await?;
+            self.storage
+                .delete_setting(&format!("{KEYS_PREFIX}{id}"))
+                .await?;
         }
         self.invalidate();
         for (id, key) in &moves {
@@ -596,11 +736,21 @@ impl I18nService {
         let _guard = self.write_lock.lock().await;
         let mut deleted = 0;
         for id in ids {
-            let Ok(key) = self.stored_key(id).await else { continue };
-            if self.storage.delete_setting(&format!("{KEYS_PREFIX}{id}")).await? {
+            let Ok(key) = self.stored_key(id).await else {
+                continue;
+            };
+            if self
+                .storage
+                .delete_setting(&format!("{KEYS_PREFIX}{id}"))
+                .await?
+            {
                 deleted += 1;
-                self.emit("i18n.key.delete", json!({ "id": id, "name": key.name, "namespace": key.namespace }), actor)
-                    .await;
+                self.emit(
+                    "i18n.key.delete",
+                    json!({ "id": id, "name": key.name, "namespace": key.namespace }),
+                    actor,
+                )
+                .await;
             }
         }
         self.invalidate();
@@ -639,22 +789,30 @@ impl I18nService {
                 let unchanged = previous.is_some_and(|p| p.text == text);
                 let new_state = match (state, unchanged) {
                     (Some(s), _) => s,
-                    (None, true) => previous.map(|p| p.state).unwrap_or(TranslationState::Translated),
+                    (None, true) => previous
+                        .map(|p| p.state)
+                        .unwrap_or(TranslationState::Translated),
                     // Editing a reviewed text sends it back to review.
                     (None, false) => TranslationState::Translated,
                 };
-                key.translations
-                    .insert(lang.clone(), Translation { text, state: new_state, updated_at: ts.clone(), updated_by: actor.name.clone() });
+                key.translations.insert(
+                    lang.clone(),
+                    Translation {
+                        text,
+                        state: new_state,
+                        updated_at: ts.clone(),
+                        updated_by: actor.name.clone(),
+                    },
+                );
             }
             None => {
                 let Some(state) = state else { return Ok(key) };
                 if !reviewer {
                     return Err(forbidden("you cannot change review states"));
                 }
-                let t = key
-                    .translations
-                    .get_mut(&lang)
-                    .ok_or_else(|| CmsError::validation(format!("`{}` has no {lang} translation yet", key.name)))?;
+                let t = key.translations.get_mut(&lang).ok_or_else(|| {
+                    CmsError::validation(format!("`{}` has no {lang} translation yet", key.name))
+                })?;
                 t.state = state;
                 t.updated_at = ts.clone();
                 t.updated_by = actor.name.clone();
@@ -677,21 +835,35 @@ impl I18nService {
 
     // ---- import / export -------------------------------------------------
 
-    pub async fn import(self: &Arc<Self>, input: ImportInput, actor: &Actor) -> Result<ImportReport> {
+    pub async fn import(
+        self: &Arc<Self>,
+        input: ImportInput,
+        actor: &Actor,
+    ) -> Result<ImportReport> {
         require_edit(actor)?;
         if input.state == TranslationState::Reviewed && !can_review(actor) {
             return Err(forbidden("you cannot import reviewed translations"));
         }
         if !input.format.importable() {
-            return Err(CmsError::validation(format!("{} files cannot be imported", input.format.as_str())));
+            return Err(CmsError::validation(format!(
+                "{} files cannot be imported",
+                input.format.as_str()
+            )));
         }
         check_namespace(&input.namespace)?;
         let parsed = formats::parse(input.format, &input.content, input.language.as_deref())?;
         let _guard = self.write_lock.lock().await;
 
-        let found: BTreeSet<String> = parsed.iter().flat_map(|k| k.translations.iter().map(|(l, _)| l.clone())).collect();
+        let found: BTreeSet<String> = parsed
+            .iter()
+            .flat_map(|k| k.translations.iter().map(|(l, _)| l.clone()))
+            .collect();
         let mut langs = self.languages().await?;
-        let unknown: Vec<String> = found.iter().filter(|l| !langs.iter().any(|x| &x.tag == *l)).cloned().collect();
+        let unknown: Vec<String> = found
+            .iter()
+            .filter(|l| !langs.iter().any(|x| &x.tag == *l))
+            .cloned()
+            .collect();
         if !unknown.is_empty() {
             if !(input.create_languages && actor.role.is_admin()) {
                 return Err(CmsError::validation(format!(
@@ -701,14 +873,21 @@ impl I18nService {
             }
             for tag in &unknown {
                 let base = langs.is_empty();
-                langs.push(Language { tag: tag.clone(), name: tag.clone(), base });
+                langs.push(Language {
+                    tag: tag.clone(),
+                    name: tag.clone(),
+                    base,
+                });
             }
             self.save_languages(langs).await?;
         }
 
         let tags = clean_tags(input.tags)?;
         let ts = format_ts(now());
-        let mut report = ImportReport { languages: found.into_iter().collect(), ..Default::default() };
+        let mut report = ImportReport {
+            languages: found.into_iter().collect(),
+            ..Default::default()
+        };
         for item in parsed {
             if check_key_name(&item.name).is_err() {
                 report.translations_skipped += item.translations.len() as u32;
@@ -753,7 +932,9 @@ impl I18nService {
                     continue;
                 }
                 match key.translations.get(&lang) {
-                    Some(t) if t.text == text && t.state >= input.state => report.translations_skipped += 1,
+                    Some(t) if t.text == text && t.state >= input.state => {
+                        report.translations_skipped += 1
+                    }
                     Some(_) if input.mode == ImportMode::Keep => report.translations_skipped += 1,
                     existing => {
                         if existing.is_some() {
@@ -761,7 +942,12 @@ impl I18nService {
                         } else {
                             report.translations_created += 1;
                         }
-                        let t = Translation { text, state: input.state, updated_at: ts.clone(), updated_by: actor.name.clone() };
+                        let t = Translation {
+                            text,
+                            state: input.state,
+                            updated_at: ts.clone(),
+                            updated_by: actor.name.clone(),
+                        };
                         key.translations.insert(lang, t);
                         changed = true;
                     }
@@ -776,8 +962,12 @@ impl I18nService {
             }
         }
         self.invalidate();
-        self.emit("i18n.import", json!({ "namespace": input.namespace, "format": input.format, "report": report }), actor)
-            .await;
+        self.emit(
+            "i18n.import",
+            json!({ "namespace": input.namespace, "format": input.format, "report": report }),
+            actor,
+        )
+        .await;
         self.after_change().await;
         Ok(report)
     }
@@ -785,7 +975,11 @@ impl I18nService {
     pub async fn export(&self, opts: &ExportOptions) -> Result<Vec<ExportFile>> {
         let langs = self.languages().await?;
         let mut opts = opts.clone();
-        opts.languages = opts.languages.iter().map(|l| normalize_tag(l)).collect::<Result<_>>()?;
+        opts.languages = opts
+            .languages
+            .iter()
+            .map(|l| normalize_tag(l))
+            .collect::<Result<_>>()?;
         formats::export(&self.all_keys().await?, &langs, &opts)
     }
 
@@ -800,7 +994,11 @@ impl I18nService {
         if self.languages().await?.is_empty() {
             return Ok(None);
         }
-        Ok(self.export(&opts).await?.into_iter().find(|f| f.path == path))
+        Ok(self
+            .export(&opts)
+            .await?
+            .into_iter()
+            .find(|f| f.path == path))
     }
 }
 
@@ -817,11 +1015,20 @@ mod tests {
     use super::*;
 
     fn svc() -> Arc<I18nService> {
-        Arc::new(I18nService::new(Arc::new(MemoryStorage::new()), SecretBox::new(&[3u8; 32]).unwrap(), I18nConfig::default()))
+        Arc::new(I18nService::new(
+            Arc::new(MemoryStorage::new()),
+            SecretBox::new(&[3u8; 32]).unwrap(),
+            I18nConfig::default(),
+        ))
     }
 
     fn user(role: Role, scope: &[&str]) -> Actor {
-        Actor { id: None, name: format!("{role:?}"), role, scope: scope.iter().map(|s| s.to_string()).collect() }
+        Actor {
+            id: None,
+            name: format!("{role:?}"),
+            role,
+            scope: scope.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     #[tokio::test]
@@ -832,8 +1039,15 @@ mod tests {
         let reviewer = user(Role::Reviewer, &["i18n"]);
         let outsider = user(Role::Contributor, &["Post"]);
 
-        assert!(s.add_language("en", "English", false, &contributor).await.is_err());
-        let en = s.add_language("en", "English", false, &admin).await.unwrap();
+        assert!(
+            s.add_language("en", "English", false, &contributor)
+                .await
+                .is_err()
+        );
+        let en = s
+            .add_language("en", "English", false, &admin)
+            .await
+            .unwrap();
         assert!(en.base, "the first language is the base one");
         s.add_language("fr_fr", "", false, &admin).await.unwrap();
         assert_eq!(s.languages().await.unwrap()[1].tag, "fr-FR");
@@ -845,39 +1059,121 @@ mod tests {
             tags: vec!["ui".into(), "ui".into()],
             ..Default::default()
         };
-        assert!(s.create_key(input.clone(), &outsider).await.is_err(), "scope without i18n");
+        assert!(
+            s.create_key(input.clone(), &outsider).await.is_err(),
+            "scope without i18n"
+        );
         let k = s.create_key(input.clone(), &contributor).await.unwrap();
         assert_eq!(k.tags, ["ui"]);
-        assert!(matches!(s.create_key(input, &contributor).await, Err(CmsError::Conflict(_))));
+        assert!(matches!(
+            s.create_key(input, &contributor).await,
+            Err(CmsError::Conflict(_))
+        ));
 
         let id = k.id();
-        assert!(s.set_translation(&id, "de", Some("x".into()), None, &contributor).await.is_err(), "unknown language");
-        s.set_translation(&id, "fr-FR", Some("Accueil".into()), None, &contributor).await.unwrap();
         assert!(
-            s.set_translation(&id, "fr-FR", None, Some(TranslationState::Reviewed), &contributor).await.is_err(),
+            s.set_translation(&id, "de", Some("x".into()), None, &contributor)
+                .await
+                .is_err(),
+            "unknown language"
+        );
+        s.set_translation(&id, "fr-FR", Some("Accueil".into()), None, &contributor)
+            .await
+            .unwrap();
+        assert!(
+            s.set_translation(
+                &id,
+                "fr-FR",
+                None,
+                Some(TranslationState::Reviewed),
+                &contributor
+            )
+            .await
+            .is_err(),
             "contributors do not review"
         );
-        let k = s.set_translation(&id, "fr-FR", None, Some(TranslationState::Reviewed), &reviewer).await.unwrap();
+        let k = s
+            .set_translation(
+                &id,
+                "fr-FR",
+                None,
+                Some(TranslationState::Reviewed),
+                &reviewer,
+            )
+            .await
+            .unwrap();
         assert_eq!(k.translations["fr-FR"].state, TranslationState::Reviewed);
-        let k = s.set_translation(&id, "fr-FR", Some("Accueil !".into()), None, &contributor).await.unwrap();
-        assert_eq!(k.translations["fr-FR"].state, TranslationState::Translated, "edits go back to review");
+        let k = s
+            .set_translation(&id, "fr-FR", Some("Accueil !".into()), None, &contributor)
+            .await
+            .unwrap();
+        assert_eq!(
+            k.translations["fr-FR"].state,
+            TranslationState::Translated,
+            "edits go back to review"
+        );
 
-        let (hits, total) =
-            s.keys(&KeyFilter { state: Some("UNTRANSLATED".into()), ..Default::default() }, 0, 10).await.unwrap();
+        let (hits, total) = s
+            .keys(
+                &KeyFilter {
+                    state: Some("UNTRANSLATED".into()),
+                    ..Default::default()
+                },
+                0,
+                10,
+            )
+            .await
+            .unwrap();
         assert_eq!((hits.len(), total), (0, 0));
-        let (_, total) = s.keys(&KeyFilter { search: Some("accueil".into()), ..Default::default() }, 0, 10).await.unwrap();
+        let (_, total) = s
+            .keys(
+                &KeyFilter {
+                    search: Some("accueil".into()),
+                    ..Default::default()
+                },
+                0,
+                10,
+            )
+            .await
+            .unwrap();
         assert_eq!(total, 1);
 
         // Rename moves the key.
-        let k = s.update_key(&id, KeyUpdate { name: Some("home.heading".into()), ..Default::default() }, &contributor).await.unwrap();
+        let k = s
+            .update_key(
+                &id,
+                KeyUpdate {
+                    name: Some("home.heading".into()),
+                    ..Default::default()
+                },
+                &contributor,
+            )
+            .await
+            .unwrap();
         assert_ne!(k.id(), id);
         assert!(s.key(&id).await.is_err());
         let stats = s.stats().await.unwrap();
-        assert_eq!((stats[1].language.as_str(), stats[1].translated, stats[1].total), ("fr-FR", 1, 1));
+        assert_eq!(
+            (
+                stats[1].language.as_str(),
+                stats[1].translated,
+                stats[1].total
+            ),
+            ("fr-FR", 1, 1)
+        );
 
-        assert!(s.remove_language("en", &admin).await.is_err(), "base language");
+        assert!(
+            s.remove_language("en", &admin).await.is_err(),
+            "base language"
+        );
         s.remove_language("fr-FR", &admin).await.unwrap();
-        assert!(!s.key(&k.id()).await.unwrap().translations.contains_key("fr-FR"));
+        assert!(
+            !s.key(&k.id())
+                .await
+                .unwrap()
+                .translations
+                .contains_key("fr-FR")
+        );
         assert_eq!(s.delete_keys(&[k.id()], &contributor).await.unwrap(), 1);
     }
 
@@ -897,24 +1193,76 @@ mod tests {
             tags: vec!["imported".into()],
             create_languages,
         };
-        let r = s.import(import(r#"{"a": "A", "b": {"c": "C"}}"#, ImportMode::Keep, false, Format::Json), &contributor).await.unwrap();
+        let r = s
+            .import(
+                import(
+                    r#"{"a": "A", "b": {"c": "C"}}"#,
+                    ImportMode::Keep,
+                    false,
+                    Format::Json,
+                ),
+                &contributor,
+            )
+            .await
+            .unwrap();
         assert_eq!((r.keys_created, r.translations_created), (2, 2));
-        let r = s.import(import(r#"{"a": "A2"}"#, ImportMode::Keep, false, Format::Json), &contributor).await.unwrap();
+        let r = s
+            .import(
+                import(r#"{"a": "A2"}"#, ImportMode::Keep, false, Format::Json),
+                &contributor,
+            )
+            .await
+            .unwrap();
         assert_eq!((r.translations_skipped, r.translations_updated), (1, 0));
-        let r = s.import(import(r#"{"a": "A2"}"#, ImportMode::Override, false, Format::Json), &contributor).await.unwrap();
+        let r = s
+            .import(
+                import(r#"{"a": "A2"}"#, ImportMode::Override, false, Format::Json),
+                &contributor,
+            )
+            .await
+            .unwrap();
         assert_eq!(r.translations_updated, 1);
 
         let csv = "key,en,de\na,A2,A-de\n";
-        assert!(s.import(import(csv, ImportMode::Keep, true, Format::Csv), &contributor).await.is_err(), "admin only");
-        let r = s.import(import(csv, ImportMode::Keep, true, Format::Csv), &admin).await.unwrap();
+        assert!(
+            s.import(
+                import(csv, ImportMode::Keep, true, Format::Csv),
+                &contributor
+            )
+            .await
+            .is_err(),
+            "admin only"
+        );
+        let r = s
+            .import(import(csv, ImportMode::Keep, true, Format::Csv), &admin)
+            .await
+            .unwrap();
         assert_eq!(r.translations_created, 1);
         assert_eq!(s.languages().await.unwrap().len(), 2);
 
-        let file = s.serve(Format::JsonNested, "de.json").await.unwrap().unwrap();
+        let file = s
+            .serve(Format::JsonNested, "de.json")
+            .await
+            .unwrap()
+            .unwrap();
         let v: Value = serde_json::from_str(&file.content).unwrap();
-        assert_eq!(v, json!({"a": "A-de", "b": {"c": "C"}}), "fallback to the base language");
+        assert_eq!(
+            v,
+            json!({"a": "A-de", "b": {"c": "C"}}),
+            "fallback to the base language"
+        );
         assert!(s.serve(Format::Json, "xx.json").await.unwrap().is_none());
-        let (keys, _) = s.keys(&KeyFilter { tag: Some("imported".into()), ..Default::default() }, 0, 10).await.unwrap();
+        let (keys, _) = s
+            .keys(
+                &KeyFilter {
+                    tag: Some("imported".into()),
+                    ..Default::default()
+                },
+                0,
+                10,
+            )
+            .await
+            .unwrap();
         assert_eq!(keys.len(), 2);
     }
 
@@ -922,7 +1270,9 @@ mod tests {
     async fn move_keys_to_another_namespace() {
         let s = svc();
         let admin = Actor::system();
-        s.add_language("en", "English", false, &admin).await.unwrap();
+        s.add_language("en", "English", false, &admin)
+            .await
+            .unwrap();
         let key = |name: &str, namespace: &str| KeyInput {
             name: name.into(),
             namespace: namespace.into(),
@@ -937,16 +1287,35 @@ mod tests {
         let c = s.create_key(key("c", "app"), &admin).await.unwrap();
 
         assert!(s.move_keys(&[a.id()], "bad ns", &admin).await.is_err());
-        assert!(s.move_keys(&[a.id()], "app", &user(Role::Reviewer, &["i18n"])).await.is_err());
+        assert!(
+            s.move_keys(&[a.id()], "app", &user(Role::Reviewer, &["i18n"]))
+                .await
+                .is_err()
+        );
         // `b` exists in both: nothing moves.
-        let err = s.move_keys(&[a.id(), b.id()], "app", &admin).await.unwrap_err();
-        assert!(matches!(&err, CmsError::Conflict(m) if m.contains("`b`")), "{err}");
-        let err = s.move_keys(&[b.id(), b_app.id()], "mobile", &admin).await.unwrap_err();
-        assert!(matches!(err, CmsError::Conflict(_)), "two moved keys named `b`");
+        let err = s
+            .move_keys(&[a.id(), b.id()], "app", &admin)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, CmsError::Conflict(m) if m.contains("`b`")),
+            "{err}"
+        );
+        let err = s
+            .move_keys(&[b.id(), b_app.id()], "mobile", &admin)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CmsError::Conflict(_)),
+            "two moved keys named `b`"
+        );
         assert_eq!(s.namespaces().await.unwrap(), vec!["app", "web"]);
 
         // Keys already there are skipped; translations follow the key.
-        assert_eq!(s.move_keys(&[a.id(), c.id()], "app", &admin).await.unwrap(), 1);
+        assert_eq!(
+            s.move_keys(&[a.id(), c.id()], "app", &admin).await.unwrap(),
+            1
+        );
         let moved = s.key(&key_id("app", "a")).await.unwrap();
         assert_eq!(moved.translations["en"].text, "web:a");
         assert!(s.key(&a.id()).await.is_err(), "old id is gone");

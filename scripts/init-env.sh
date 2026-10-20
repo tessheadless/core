@@ -11,6 +11,8 @@
 #   scripts/init-env.sh -y                  # defaults: Docker, RocksDB, files on disk
 #   scripts/init-env.sh -y --database postgres --search typesense --n8n \
 #       --url https://cms.example.com
+#   scripts/init-env.sh -y --local          # the `local` compose profile: Garage, Typesense,
+#                                           # Valkey and n8n on this machine
 #   scripts/init-env.sh --target native -o tess.env   # for the binary, no Docker
 #
 # Options:
@@ -18,11 +20,13 @@
 #   -f, --force         replace FILE; its secrets are kept (backup in FILE.bak)
 #       --new-secrets   with --force: generate new secrets too
 #   -y, --yes           no questions, use the defaults and options
+#       --local         S3 media, Typesense, Valkey and n8n, as in the `local` profile
+#       --license L     community (default) | commercial (key in TESS_LICENSE_KEY, no n8n)
 #       --target T      docker (compose service names, /data volume) | native
 #       --database DB   rocksdb | sqlite | postgres | mysql | mongodb | dynamodb | memory
 #       --media M       fs | s3 (docker: the Garage `s3` profile)
 #       --search S      none | memory | typesense
-#       --cache C       none | memory | valkey (docker: the Valkey `cache` profile)
+#       --cache C       none | memory | valkey | redis | keydb | dragonfly (docker: its compose profile)
 #       --n8n, --no-n8n enable the n8n workflows (docker: the `n8n` profile)
 #       --url URL       public URL of Tess (default: http://localhost:8080)
 #       --version V     docker image version (default: latest)
@@ -34,7 +38,7 @@ set -euo pipefail
 usage() { sed -n '/^# Creates/,/^# Secrets/s/^# \{0,1\}//p' "$0"; exit "${1:-0}"; }
 die() { echo "init-env: $*" >&2; exit 1; }
 
-output=.env force=0 new_secrets=0 yes=0
+output=.env force=0 new_secrets=0 yes=0 local=0 license=community
 target='' database='' media='' search='' cache='' n8n='' url='' version='' arch=''
 while (($#)); do
   case $1 in
@@ -42,6 +46,8 @@ while (($#)); do
     -f | --force) force=1 ;;
     --new-secrets) new_secrets=1 ;;
     -y | --yes) yes=1 ;;
+    --local) local=1 ;;
+    --license) license=${2:?}; shift ;;
     --target) target=${2:?}; shift ;;
     --database) database=${2:?}; shift ;;
     --media) media=${2:?}; shift ;;
@@ -90,6 +96,16 @@ one_of() { # value name choice...
   [[ " $* " == *" $value "* ]] || die "$name must be one of: $*"
 }
 
+# --local: the services of the `local` compose profile, unless chosen otherwise.
+[[ $license == community || $license == commercial ]] || die "--license must be community or commercial"
+# The commercial license doesn't include the n8n workflow editor.
+if [[ $license == commercial ]]; then
+  [[ $n8n == yes ]] && die "--n8n: the commercial license doesn't include n8n"
+  n8n=no
+fi
+if [[ $local == 1 ]]; then
+  : "${target:=docker}" "${media:=s3}" "${search:=typesense}" "${cache:=valkey}" "${n8n:=yes}"
+fi
 ask target "Run with" docker docker native
 one_of "$target" --target docker native
 ask database "Database" rocksdb rocksdb sqlite postgres mysql mongodb dynamodb memory
@@ -98,8 +114,8 @@ ask media "Media files" fs fs s3
 one_of "$media" --media fs s3
 ask search "Full-text search" none none memory typesense
 one_of "$search" --search none memory typesense
-ask cache "Response cache" none none memory valkey
-one_of "$cache" --cache none memory valkey
+ask cache "Response cache" none none memory valkey redis keydb dragonfly
+one_of "$cache" --cache none memory valkey redis keydb dragonfly
 ask n8n "n8n workflows" no yes no
 one_of "$n8n" --n8n yes no
 ask url "Public URL of Tess" http://localhost:8080
@@ -111,8 +127,15 @@ if [[ $target == docker ]]; then
     aarch64 | arm64) host_arch=arm64 ;;
     *) host_arch=none ;;
   esac
-  ask version "Tess image version" latest
-  ask arch "Image architecture" "$host_arch" amd64 arm64 none
+  # A release bundle's .env pins the image: keep it by default.
+  pinned_version=latest pinned_arch=$host_arch
+  if [[ -f $output ]] && grep -q '^TESS_VERSION=' "$output"; then
+    pinned_version=$(sed -n 's/^TESS_VERSION=//p' "$output" | tail -n 1)
+    pinned_arch=$(sed -n 's/^TESS_ARCH=//p' "$output" | tail -n 1)
+    pinned_version=${pinned_version:-latest} pinned_arch=${pinned_arch:-none}
+  fi
+  ask version "Tess image version" "$pinned_version"
+  ask arch "Image architecture" "$pinned_arch" amd64 arm64 none
   one_of "$arch" --arch amd64 arm64 none
   [[ $arch == none ]] && arch=''
 fi
@@ -166,10 +189,19 @@ esac
 if [[ $target == docker ]]; then
   profiles=''
   for p in postgres mysql mongodb dynamodb; do [[ $database == "$p" ]] && profiles+=" --profile $p"; done
-  [[ $media == s3 ]] && profiles+=' --profile s3'
-  [[ $search == typesense ]] && profiles+=' --profile search'
-  [[ $cache == valkey ]] && profiles+=' --profile cache'
-  [[ $n8n == yes ]] && profiles+=' --profile n8n'
+  if [[ $media == s3 && $search == typesense && $cache == valkey && $n8n == yes ]]; then
+    profiles+=' --profile local'
+  elif [[ $media == s3 && $search == typesense && $cache == valkey && $license == commercial ]]; then
+    profiles+=' --profile local-commercial'
+  else
+    [[ $media == s3 ]] && profiles+=' --profile s3'
+    [[ $search == typesense ]] && profiles+=' --profile search'
+    case $cache in
+      valkey) profiles+=' --profile cache' ;;
+      redis | keydb | dragonfly) profiles+=" --profile cache-$cache" ;;
+    esac
+    [[ $n8n == yes ]] && profiles+=' --profile n8n'
+  fi
 fi
 
 write() {
@@ -186,9 +218,6 @@ EOF
     cat <<EOF
 #
 #   docker compose${profiles} up -d
-#
-# docker-compose-local.yml only reads the secrets, the image and the n8n/MCP
-# settings: it always uses RocksDB, files on disk and no search.
 EOF
     section "Docker images"
     echo "TESS_IMAGE=$(previous TESS_IMAGE | grep . || echo ghcr.io/tessheadless/tess)"
@@ -201,6 +230,17 @@ EOF
 #
 #   set -a && . $env_path && set +a && ./tess
 EOF
+  fi
+
+  section "License: community | commercial"
+  echo "# Community: personal use. Commercial: any commercial use, needs TESS_LICENSE_KEY"
+  echo "# (and excludes the embedded n8n workflow editor). See LICENSE.md."
+  echo "TESS_LICENSE=$license"
+  if [[ $license == commercial ]]; then
+    echo "# Your Enterprise license key (tess_…): Tess refuses to start without it."
+    echo "TESS_LICENSE_KEY=$(previous TESS_LICENSE_KEY)"
+  else
+    kv 0 TESS_LICENSE_KEY "tess_…"
   fi
 
   section "Secrets"
@@ -252,14 +292,21 @@ EOF
   echo "TESS_MEDIA_STORE=$media"
   kv "$(is "$media" fs)" TESS_MEDIA_DIR "$data/media"
   if [[ $target == docker ]]; then
-    echo "# Garage (\`s3\` profile). After \`docker compose --profile s3 up -d\`, once:"
-    echo "#   set -a && . $env_path && set +a"
-    echo "#   deploy/garage/init.sh \"\$(docker compose ps -q garage)\" \"\$TESS_S3_BUCKET\" \"\$TESS_S3_ACCESS_KEY_ID\" \"\$TESS_S3_SECRET_ACCESS_KEY\""
+    echo "# Garage (profiles \`s3\`, \`local\`): the \`garage-init\` service creates the bucket and"
+    echo "# this key at start (deploy/garage/setup.sh)."
   else
     echo "# Any S3 API: AWS (no endpoint), Garage, Cloudflare R2, MinIO..."
   fi
   kv "$(is "$media" s3)" TESS_S3_BUCKET tess-media
   kv "$(is "$media" s3)" TESS_S3_ENDPOINT "http://$(host garage):3900"
+  if [[ $target == docker ]]; then
+    echo "# Where browsers reach Garage, for file URLs (compose publishes port 3900)."
+    if [[ $url == *//localhost* || $url == *//127.0.0.1* ]]; then
+      kv "$(is "$media" s3)" TESS_S3_PUBLIC_ENDPOINT "http://localhost:3900"
+    else
+      kv 0 TESS_S3_PUBLIC_ENDPOINT "https://s3.example.com"
+    fi
+  fi
   kv "$(is "$media" s3)" TESS_S3_REGION garage
   echo "# Both or neither (neither: the AWS credential chain, e.g. an IAM role)."
   kv "$(is "$media" s3)" TESS_S3_ACCESS_KEY_ID "$s3_key_id"
@@ -298,7 +345,9 @@ EOF
   section "Cache: none | memory | valkey"
   echo "# Anonymous GraphQL reads and served translation files; invalidated on every change."
   echo "TESS_CACHE=$cache"
-  kv "$(is "$cache" valkey)" VALKEY_URL "redis://$(host valkey):6379"
+  remote=0
+  [[ $cache != none && $cache != memory ]] && remote=1
+  kv "$remote" TESS_CACHE_URL "redis://$(host "$([[ $remote == 1 ]] && echo "$cache" || echo valkey)"):6379"
   kv 0 TESS_CACHE_TTL_SECS 60
   kv 0 TESS_CACHE_PREFIX tess:
   kv 0 TESS_CACHE_MAX_ENTRIES 10000
@@ -349,12 +398,11 @@ write >"$tmp"
 mv "$tmp" "$output"
 trap - EXIT
 
-echo "Wrote $output ($target, $database, media $media, search $search, cache $cache, n8n $n8n)."
+echo "Wrote $output ($license license, $target, $database, media $media, search $search, cache $cache, n8n $n8n)."
 [[ -e $output.bak ]] && echo "Previous file: $output.bak"
 if [[ $target == docker ]]; then
   echo "Start:   docker compose${profiles} up -d"
 else
   echo "Start:   set -a && . $env_path && set +a && ./tess"
 fi
-[[ $media == s3 && $target == docker ]] && echo "Garage:  run deploy/garage/init.sh once (see the Media section of $output)"
 echo "Sign in: $url/admin/ with TESS_ADMIN_TOKEN from $output"

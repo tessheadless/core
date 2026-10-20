@@ -19,7 +19,9 @@ import {
   type StoredCredential,
 } from "../lib/auth";
 import { ApiError, describeError, gql } from "../lib/graphql";
+import { useQuery } from "../lib/useQuery";
 import { abilitiesFor, useViewer, ViewerProvider, type Abilities, type Viewer } from "../lib/viewer";
+import { fetchWorkflowEditor } from "../lib/workflows";
 
 export default function Layout({ children }: { children: ReactNode }) {
   const credential = useCredential();
@@ -126,7 +128,7 @@ interface NavItem {
   label: string;
 }
 
-function navItems(a: Abilities): NavItem[] {
+function navItems(a: Abilities, workflows: boolean): NavItem[] {
   const items: NavItem[] = [
     { href: "/", label: "Dashboard" },
     { href: "/content", label: "Content" },
@@ -134,7 +136,8 @@ function navItems(a: Abilities): NavItem[] {
   ];
   if (a.canSeeReviewQueue)
     items.push({ href: "/review", label: a.role === "CONTRIBUTOR" ? "Changes requested" : "Review queue" });
-  if (a.isAdmin || a.role === "CONTRIBUTOR") items.push({ href: "/workflows", label: "Workflows" });
+  // Only when the server has a workflow editor (never with the commercial license).
+  if (workflows && (a.isAdmin || a.role === "CONTRIBUTOR")) items.push({ href: "/workflows", label: "Workflows" });
   if (a.isAdmin) {
     items.push(
       { href: "/content-models", label: "Content models" },
@@ -156,6 +159,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [flash, setFlashMessage] = useState<string | null>(getFlash);
   const closeDrawer = () => setDrawerOpen(false);
   const { viewer } = abilities;
+  const workflows = useQuery(fetchWorkflowEditor);
 
   return (
     <div className="drawer lg:drawer-open">
@@ -202,7 +206,7 @@ function Shell({ children }: { children: ReactNode }) {
           </a>
           <nav aria-label="Main" className="flex-1">
             <ul className="menu w-full">
-              {navItems(abilities).map((item) => (
+              {navItems(abilities, !!workflows.data?.workflowEditor).map((item) => (
                 <li key={item.href}>
                   <NavLink href={item.href} onClick={closeDrawer}>
                     {item.label}

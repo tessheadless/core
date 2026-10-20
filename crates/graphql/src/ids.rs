@@ -98,7 +98,11 @@ impl IdCodec {
         if config.ref_secret.len() < MIN_SECRET_LEN {
             return Err(IdConfigError::SecretTooShort("TESS_REF_SECRET"));
         }
-        if config.previous_secrets.iter().any(|s| s.len() < MIN_SECRET_LEN) {
+        if config
+            .previous_secrets
+            .iter()
+            .any(|s| s.len() < MIN_SECRET_LEN)
+        {
             return Err(IdConfigError::SecretTooShort("TESS_ID_SECRET_PREVIOUS"));
         }
         if config.secret == config.ref_secret {
@@ -118,7 +122,11 @@ impl IdCodec {
                 }
             })
             .collect();
-        Ok(IdCodec { keys, ref_key: derive(&config.ref_secret, "tess/ref/v1"), ttl: config.ttl })
+        Ok(IdCodec {
+            keys,
+            ref_key: derive(&config.ref_secret, "tess/ref/v1"),
+            ttl: config.ttl,
+        })
     }
 
     pub fn ttl(&self) -> Duration {
@@ -134,7 +142,10 @@ impl IdCodec {
         let key = &self.keys[0];
         let exp = now.saturating_add(self.ttl.as_secs() as i64);
         let type_bytes = type_name.as_bytes();
-        assert!(type_bytes.len() <= u8::MAX as usize, "type names are at most 64 chars");
+        assert!(
+            type_bytes.len() <= u8::MAX as usize,
+            "type names are at most 64 chars"
+        );
 
         let mut plain = Vec::with_capacity(1 + type_bytes.len() + 16 + 8);
         plain.push(type_bytes.len() as u8);
@@ -147,7 +158,13 @@ impl IdCodec {
         let header = [VERSION, key.id];
         let sealed = key
             .cipher
-            .encrypt(&XNonce::from(nonce), Payload { msg: &plain, aad: &header })
+            .encrypt(
+                &XNonce::from(nonce),
+                Payload {
+                    msg: &plain,
+                    aad: &header,
+                },
+            )
             .expect("encryption with a valid key cannot fail");
 
         let mut token = Vec::with_capacity(header.len() + NONCE_LEN + sealed.len());
@@ -159,16 +176,27 @@ impl IdCodec {
 
     /// Decodes an opaque ID. With `expected_type`, IDs of other types are
     /// rejected (an `Author` id cannot be used as a `Post` id).
-    pub fn decode(&self, token: &str, expected_type: Option<&str>) -> Result<(String, Uuid), IdError> {
+    pub fn decode(
+        &self,
+        token: &str,
+        expected_type: Option<&str>,
+    ) -> Result<(String, Uuid), IdError> {
         self.decode_at(token, expected_type, unix_now())
     }
 
-    pub fn decode_at(&self, token: &str, expected_type: Option<&str>, now: i64) -> Result<(String, Uuid), IdError> {
+    pub fn decode_at(
+        &self,
+        token: &str,
+        expected_type: Option<&str>,
+        now: i64,
+    ) -> Result<(String, Uuid), IdError> {
         // Reject absurd inputs before decoding.
         if token.len() > 512 {
             return Err(IdError::Malformed);
         }
-        let raw = URL_SAFE_NO_PAD.decode(token).map_err(|_| IdError::Malformed)?;
+        let raw = URL_SAFE_NO_PAD
+            .decode(token)
+            .map_err(|_| IdError::Malformed)?;
         if raw.len() < 2 + NONCE_LEN + 16 || raw[0] != VERSION {
             return Err(IdError::Malformed);
         }
@@ -179,7 +207,17 @@ impl IdCodec {
             .keys
             .iter()
             .filter(|k| k.id == header[1])
-            .find_map(|k| k.cipher.decrypt(&nonce, Payload { msg: sealed, aad: header }).ok())
+            .find_map(|k| {
+                k.cipher
+                    .decrypt(
+                        &nonce,
+                        Payload {
+                            msg: sealed,
+                            aad: header,
+                        },
+                    )
+                    .ok()
+            })
             .ok_or(IdError::Invalid)?;
 
         // Authenticated, so the layout below is ours; still parse defensively.
@@ -187,9 +225,15 @@ impl IdCodec {
         if plain.len() != 1 + type_len + 16 + 8 {
             return Err(IdError::Invalid);
         }
-        let type_name = std::str::from_utf8(&plain[1..1 + type_len]).map_err(|_| IdError::Invalid)?;
-        let id = Uuid::from_slice(&plain[1 + type_len..1 + type_len + 16]).map_err(|_| IdError::Invalid)?;
-        let exp = i64::from_be_bytes(plain[1 + type_len + 16..].try_into().map_err(|_| IdError::Invalid)?);
+        let type_name =
+            std::str::from_utf8(&plain[1..1 + type_len]).map_err(|_| IdError::Invalid)?;
+        let id = Uuid::from_slice(&plain[1 + type_len..1 + type_len + 16])
+            .map_err(|_| IdError::Invalid)?;
+        let exp = i64::from_be_bytes(
+            plain[1 + type_len + 16..]
+                .try_into()
+                .map_err(|_| IdError::Invalid)?,
+        );
 
         if now >= exp {
             return Err(IdError::Expired);
@@ -197,7 +241,10 @@ impl IdCodec {
         if let Some(expected) = expected_type
             && expected != type_name
         {
-            return Err(IdError::WrongType { expected: expected.into(), found: type_name.into() });
+            return Err(IdError::WrongType {
+                expected: expected.into(),
+                found: type_name.into(),
+            });
         }
         Ok((type_name.to_string(), id))
     }
@@ -205,7 +252,8 @@ impl IdCodec {
     /// Stable, non-reversible reference for an object: identical across
     /// requests, different for every object.
     pub fn stable_ref(&self, type_name: &str, id: Uuid) -> String {
-        let mut mac = <Hmac<Sha256>>::new_from_slice(&self.ref_key).expect("HMAC accepts any key length");
+        let mut mac =
+            <Hmac<Sha256>>::new_from_slice(&self.ref_key).expect("HMAC accepts any key length");
         mac.update(&[type_name.len() as u8]);
         mac.update(type_name.as_bytes());
         mac.update(id.as_bytes());
@@ -273,10 +321,16 @@ mod tests {
         let c = codec();
         let id = Uuid::new_v4();
         let token = c.encode("Post", id);
-        assert_eq!(c.decode(&token, Some("Post")).unwrap(), ("Post".to_string(), id));
+        assert_eq!(
+            c.decode(&token, Some("Post")).unwrap(),
+            ("Post".to_string(), id)
+        );
         assert!(!token.contains(&id.simple().to_string()));
         let raw = URL_SAFE_NO_PAD.decode(&token).unwrap();
-        assert!(!raw.windows(16).any(|w| w == id.as_bytes()), "uuid bytes must not appear in clear");
+        assert!(
+            !raw.windows(16).any(|w| w == id.as_bytes()),
+            "uuid bytes must not appear in clear"
+        );
     }
 
     #[test]
@@ -285,7 +339,10 @@ mod tests {
         let id = Uuid::new_v4();
         assert_ne!(c.encode("Post", id), c.encode("Post", id));
         assert_eq!(c.stable_ref("Post", id), c.stable_ref("Post", id));
-        assert_ne!(c.stable_ref("Post", id), c.stable_ref("Post", Uuid::new_v4()));
+        assert_ne!(
+            c.stable_ref("Post", id),
+            c.stable_ref("Post", Uuid::new_v4())
+        );
         assert_ne!(c.stable_ref("Post", id), c.stable_ref("Author", id));
         assert!(!c.stable_ref("Post", id).contains(&id.simple().to_string()));
     }
@@ -296,7 +353,10 @@ mod tests {
         let id = Uuid::new_v4();
         let token = c.encode_at("Post", id, 1_000);
         assert!(c.decode_at(&token, None, 1_000 + 3599).is_ok());
-        assert_eq!(c.decode_at(&token, None, 1_000 + 3600), Err(IdError::Expired));
+        assert_eq!(
+            c.decode_at(&token, None, 1_000 + 3600),
+            Err(IdError::Expired)
+        );
     }
 
     #[test]
@@ -305,7 +365,10 @@ mod tests {
         let token = c.encode("Author", Uuid::new_v4());
         assert_eq!(
             c.decode(&token, Some("Post")),
-            Err(IdError::WrongType { expected: "Post".into(), found: "Author".into() })
+            Err(IdError::WrongType {
+                expected: "Post".into(),
+                found: "Author".into()
+            })
         );
     }
 
@@ -316,13 +379,22 @@ mod tests {
         let mut raw = URL_SAFE_NO_PAD.decode(&token).unwrap();
         let last = raw.len() - 1;
         raw[last] ^= 1;
-        assert_eq!(c.decode(&URL_SAFE_NO_PAD.encode(&raw), None), Err(IdError::Invalid));
+        assert_eq!(
+            c.decode(&URL_SAFE_NO_PAD.encode(&raw), None),
+            Err(IdError::Invalid)
+        );
         // Header is authenticated too.
         let mut raw = URL_SAFE_NO_PAD.decode(&token).unwrap();
         raw[1] ^= 0xff;
-        assert_eq!(c.decode(&URL_SAFE_NO_PAD.encode(&raw), None), Err(IdError::Invalid));
+        assert_eq!(
+            c.decode(&URL_SAFE_NO_PAD.encode(&raw), None),
+            Err(IdError::Invalid)
+        );
         assert_eq!(c.decode("not-an-id!", None), Err(IdError::Malformed));
-        assert_eq!(c.decode(&Uuid::new_v4().to_string(), None), Err(IdError::Malformed));
+        assert_eq!(
+            c.decode(&Uuid::new_v4().to_string(), None),
+            Err(IdError::Malformed)
+        );
         assert_eq!(c.decode("", None), Err(IdError::Malformed));
     }
 
@@ -339,14 +411,22 @@ mod tests {
         let rotated = codec_with(new, vec![old], refs);
         assert_eq!(rotated.decode(&token, None).unwrap().1, id);
         // Refs survive an ID-key rotation.
-        assert_eq!(rotated.stable_ref("Post", id), before.stable_ref("Post", id));
+        assert_eq!(
+            rotated.stable_ref("Post", id),
+            before.stable_ref("Post", id)
+        );
     }
 
     #[test]
     fn config_validation() {
         let short = vec![1u8; 8];
         let ok = secret();
-        let cfg = |s: Vec<u8>, r: Vec<u8>, ttl| IdConfig { secret: s, previous_secrets: vec![], ref_secret: r, ttl };
+        let cfg = |s: Vec<u8>, r: Vec<u8>, ttl| IdConfig {
+            secret: s,
+            previous_secrets: vec![],
+            ref_secret: r,
+            ttl,
+        };
         assert!(IdCodec::new(cfg(short.clone(), secret(), Duration::from_secs(1))).is_err());
         assert!(IdCodec::new(cfg(secret(), short, Duration::from_secs(1))).is_err());
         assert!(matches!(

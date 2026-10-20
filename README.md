@@ -22,7 +22,7 @@ or as an AWS Lambda function.
 - **Media library** on S3-compatible stores (Garage, MinIO, AWS S3, R2, ...) or
   the local filesystem, with direct presigned uploads.
 - **Full-text search** with Typesense (pluggable engine).
-- **Response cache** in Valkey (or any Redis-compatible server), shared by all
+- **Response cache** in Valkey, Redis, KeyDB or Dragonfly, shared by all
   instances and invalidated on every change.
 - **Plugins**: sandboxed WebAssembly modules, installed and configured by admins
   at runtime (Extism; write them in Rust, Go, JS, ...).
@@ -57,7 +57,7 @@ or as an AWS Lambda function.
 | `crates/storage-{mongodb,dynamodb,rocksdb}` | other database backends                                                                                               |
 | `crates/media`                              | `BlobStore` (S3 / filesystem), `Asset` content type, uploads                                                          |
 | `crates/search`                             | `SearchEngine` (Typesense / memory), indexing hook                                                                    |
-| `crates/cache`                              | `CacheStore` (Valkey / memory), response cache, invalidation hook, cross-instance schema refresh                      |
+| `crates/cache`                              | `CacheStore` (Redis protocol: Valkey, Redis, KeyDB, Dragonfly / memory), response cache, invalidation hook            |
 | `crates/plugins`                            | WebAssembly plugin runtime and manager                                                                                |
 | `crates/i18n`                               | translations: keys, languages, review, file formats, delivery targets                                                 |
 | `crates/webhooks`                           | outgoing webhooks: subscriptions, signing, retries, delivery log                                                      |
@@ -85,11 +85,12 @@ Open <http://localhost:8080/admin/> (sign in with `TESS_ADMIN_TOKEN`) or the
 GraphiQL IDE at <http://localhost:8080/graphql>. By default data lives in an
 embedded RocksDB database and local files, in the `tess-data` volume.
 
-For the smallest local setup (Tess alone, embedded RocksDB, files on disk,
-nothing else to run), use the dedicated file:
+To run every optional service on your machine too (Garage for media,
+Typesense, Valkey and n8n), use the `local` profile:
 
 ```sh
-docker compose -f docker-compose-local.yml up --build
+scripts/init-env.sh --local       # writes .env, secrets included
+docker compose --profile local up --build
 ```
 
 Other backends are compose profiles. Set the matching variables in `.env`:
@@ -362,6 +363,14 @@ evaluator, so filters, sorting and pagination behave identically everywhere.
 - **Lambda secrets**: the SAM template resolves secrets into environment
   variables. Anyone with `lambda:GetFunctionConfiguration` can read them, so
   restrict that permission, or switch to fetching secrets at runtime.
+
+## Versions and releases
+
+The version is in [`VERSION`](VERSION) (`vX.Y.Z`). `scripts/version.sh` sets it
+in every sub-project (crates, admin, website, docs, n8n nodes) and checks them
+(`--check`). Each `vX.Y.Z` release is built by the release workflow, and its
+changes are on the [releases page](https://github.com/tessheadless/core/releases)
+(see [CHANGELOG.md](CHANGELOG.md)).
 
 ## Documentation
 

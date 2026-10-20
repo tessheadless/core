@@ -22,6 +22,11 @@ Tess ── webhook (signed events) ──▶ Tess Trigger node in n8n
 n8n is distributed under the [Sustainable Use License](https://docs.n8n.io/sustainable-use-license/):
 running it for your own internal workflows is fine, but offering it embedded in
 a product to third parties requires a commercial *n8n Embed* license from n8n.
+
+For this reason, Tess's **commercial license** (`TESS_LICENSE=commercial`) does
+not include the embedded editor: Tess doesn't proxy `/n8n/`, and **Workflows**
+disappears from the admin. [Webhooks](webhooks.md) still send every event, to
+n8n or any other tool you run under your own license.
 :::
 
 ## Setup with Docker Compose

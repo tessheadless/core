@@ -37,7 +37,12 @@ pub trait BlobStore: Send + Sync + 'static {
 
     /// Presigned upload, letting clients bypass the CMS for large files (and
     /// the 6 MB request limit of AWS Lambda). `None` when unsupported.
-    async fn presign_put(&self, _key: &str, _content_type: &str, _ttl: Duration) -> Result<Option<PresignedRequest>> {
+    async fn presign_put(
+        &self,
+        _key: &str,
+        _content_type: &str,
+        _ttl: Duration,
+    ) -> Result<Option<PresignedRequest>> {
         Ok(None)
     }
 
@@ -55,9 +60,17 @@ pub(crate) fn check_key(key: &str) -> Result<()> {
             !seg.is_empty()
                 && seg != "."
                 && seg != ".."
-                && seg.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                && seg
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
         });
-    if ok { Ok(()) } else { Err(tess_core::CmsError::validation(format!("invalid object key `{key}`"))) }
+    if ok {
+        Ok(())
+    } else {
+        Err(tess_core::CmsError::validation(format!(
+            "invalid object key `{key}`"
+        )))
+    }
 }
 
 #[cfg(test)]

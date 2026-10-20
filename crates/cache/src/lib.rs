@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
-//! Response cache. Values live in a [`CacheStore`]: [`ValkeyStore`] (Valkey,
-//! or any Redis-compatible server) shared by every instance, or
-//! [`MemoryStore`] for a single instance.
+//! Response cache. Values live in a [`CacheStore`]: [`RedisStore`] (Valkey,
+//! Redis, KeyDB, Dragonfly or any server speaking the Redis protocol) shared
+//! by every instance, or [`MemoryStore`] for a single instance.
 //!
 //! Invalidation uses generations: each [`Scope`] has a counter in the store,
 //! part of every key. A change increments it ([`CacheHook`] does on every
@@ -17,7 +17,7 @@
 //! is served without it.
 
 mod memory;
-mod valkey;
+mod redis_store;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 use tess_core::{ContentType, EntryEvent, Hook, MODEL_EVENTS, Result, SystemEvent};
 
 pub use memory::MemoryStore;
-pub use valkey::ValkeyStore;
+pub use redis_store::RedisStore;
 
 /// Called for each message of a subscribed channel.
 pub type MessageFn = Arc<dyn Fn(&str) + Send + Sync>;
@@ -37,7 +37,8 @@ pub trait CacheStore: Send + Sync + 'static {
     fn name(&self) -> &'static str;
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
     async fn set(&self, key: &str, value: &[u8], ttl: Duration) -> Result<()>;
-    /// Current value of a counter (0 when missing).
+    /// Current value of a counter. A missing one may start anywhere (not
+    /// necessarily 0), but never at a value it had before.
     async fn counter(&self, key: &str) -> Result<u64>;
     async fn increment(&self, key: &str) -> Result<u64>;
     async fn publish(&self, channel: &str, message: &str) -> Result<()>;
@@ -75,7 +76,10 @@ pub struct CacheConfig {
 
 impl Default for CacheConfig {
     fn default() -> Self {
-        CacheConfig { ttl: Duration::from_secs(60), prefix: "tess:".into() }
+        CacheConfig {
+            ttl: Duration::from_secs(60),
+            prefix: "tess:".into(),
+        }
     }
 }
 
@@ -124,9 +128,17 @@ impl CacheService {
             h.update((p.len() as u64).to_le_bytes());
             h.update(p);
         }
-        let key = format!("{}{}:{generation}:{}", self.config.prefix, scope.as_str(), hex::encode(h.finalize()));
+        let key = format!(
+            "{}{}:{generation}:{}",
+            self.config.prefix,
+            scope.as_str(),
+            hex::encode(h.finalize())
+        );
         match self.store.get(&key).await {
-            Ok(value) => Lookup { value, key: Some(key) },
+            Ok(value) => Lookup {
+                value,
+                key: Some(key),
+            },
             Err(e) => {
                 tracing::warn!(error = %e, "cache read failed");
                 Lookup::default()
@@ -161,7 +173,8 @@ impl CacheService {
 
     /// Runs `f` whenever an instance announces a schema change.
     pub fn on_schema_change(&self, f: impl Fn() + Send + Sync + 'static) {
-        self.store.subscribe(&self.schema_channel(), Arc::new(move |_| f()));
+        self.store
+            .subscribe(&self.schema_channel(), Arc::new(move |_| f()));
     }
 
     /// The hook invalidating the cache on every change.

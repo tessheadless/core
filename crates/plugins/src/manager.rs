@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 
 use bytes::Bytes;
-use tess_core::model::{format_ts, now};
-use tess_core::{Cms, CmsError, Hook, Result, Storage};
-use tess_media::BlobStore;
 use regex::Regex;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tess_core::model::{format_ts, now};
+use tess_core::{Cms, CmsError, Hook, Result, Storage};
+use tess_media::BlobStore;
 use uuid::Uuid;
 
 use crate::hook::{WasmHook, call, instantiate};
@@ -20,7 +20,8 @@ use crate::{HOOK_EXPORTS, PluginRecord};
 const SETTINGS_PREFIX: &str = "plugins/";
 const HOOK_PREFIX: &str = "plugin:";
 static NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new("^[a-z][a-z0-9-]{1,47}$").unwrap());
-static HOST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\*\.)?[A-Za-z0-9.-]{1,253}(:\d{1,5})?$").unwrap());
+static HOST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\*\.)?[A-Za-z0-9.-]{1,253}(:\d{1,5})?$").unwrap());
 
 /// Computes the stable, non-reversible `ref` of an entry (content type, id).
 pub type RefFn = Arc<dyn Fn(&str, Uuid) -> String + Send + Sync>;
@@ -37,7 +38,12 @@ pub struct PluginLimits {
 
 impl Default for PluginLimits {
     fn default() -> Self {
-        PluginLimits { max_module_bytes: 20 * 1024 * 1024, max_timeout_ms: 10_000, max_memory_pages: 1024, allow_http: true }
+        PluginLimits {
+            max_module_bytes: 20 * 1024 * 1024,
+            max_timeout_ms: 10_000,
+            max_memory_pages: 1024,
+            allow_http: true,
+        }
     }
 }
 
@@ -81,13 +87,21 @@ fn key(name: &str) -> String {
 }
 
 impl PluginManager {
-    pub fn new(storage: Arc<dyn Storage>, blobs: Arc<dyn BlobStore>, refs: RefFn, limits: PluginLimits) -> Self {
+    pub fn new(
+        storage: Arc<dyn Storage>,
+        blobs: Arc<dyn BlobStore>,
+        refs: RefFn,
+        limits: PluginLimits,
+    ) -> Self {
         PluginManager {
             storage,
             blobs,
             refs,
             limits,
-            loaded: tokio::sync::Mutex::new(Loaded { fingerprint: String::new(), hooks: HashMap::new() }),
+            loaded: tokio::sync::Mutex::new(Loaded {
+                fingerprint: String::new(),
+                hooks: HashMap::new(),
+            }),
             errors: Arc::default(),
         }
     }
@@ -127,7 +141,10 @@ impl PluginManager {
             .await?
             .into_iter()
             .map(|record| PluginStatus {
-                loaded: loaded.hooks.get(&record.name).is_some_and(|h| h.record == record),
+                loaded: loaded
+                    .hooks
+                    .get(&record.name)
+                    .is_some_and(|h| h.record == record),
                 last_error: errors.get(&record.name).cloned(),
                 record,
             })
@@ -160,7 +177,10 @@ impl PluginManager {
         if !wasm.starts_with(b"\0asm") {
             return Err(CmsError::validation("not a WebAssembly module"));
         }
-        let sha256: String = Sha256::digest(&wasm).iter().map(|b| format!("{b:02x}")).collect();
+        let sha256: String = Sha256::digest(&wasm)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         let existing = self.record(name).await.ok();
         let ts = format_ts(now());
         let mut record = existing.clone().unwrap_or(PluginRecord {
@@ -187,14 +207,25 @@ impl PluginManager {
         record.updated_at = ts;
 
         // Inspect the module in a sandbox without network access.
-        let inspect = PluginRecord { allowed_hosts: vec![], ..record.clone() };
+        let inspect = PluginRecord {
+            allowed_hosts: vec![],
+            ..record.clone()
+        };
         let instance = {
             let wasm = wasm.clone();
-            tokio::task::spawn_blocking(move || instantiate(&wasm, &inspect)).await.map_err(CmsError::storage)??
+            tokio::task::spawn_blocking(move || instantiate(&wasm, &inspect))
+                .await
+                .map_err(CmsError::storage)??
         };
-        record.exports = HOOK_EXPORTS.iter().filter(|f| instance.function_exists(f)).map(|f| f.to_string()).collect();
+        record.exports = HOOK_EXPORTS
+            .iter()
+            .filter(|f| instance.function_exists(f))
+            .map(|f| f.to_string())
+            .collect();
         if record.exports.is_empty() {
-            return Err(CmsError::validation(format!("the module exports none of {HOOK_EXPORTS:?}")));
+            return Err(CmsError::validation(format!(
+                "the module exports none of {HOOK_EXPORTS:?}"
+            )));
         }
         if instance.function_exists("manifest") {
             let out = call(Arc::new(Mutex::new(instance)), "manifest", vec![])
@@ -202,11 +233,19 @@ impl PluginManager {
                 .map_err(|e| CmsError::Plugin(format!("`{name}` manifest failed: {e}")))?;
             let manifest: Value = serde_json::from_slice(&out)
                 .map_err(|e| CmsError::Plugin(format!("`{name}` manifest is not JSON: {e}")))?;
-            record.version = manifest.get("version").and_then(Value::as_str).map(String::from);
-            record.description = manifest.get("description").and_then(Value::as_str).map(String::from);
+            record.version = manifest
+                .get("version")
+                .and_then(Value::as_str)
+                .map(String::from);
+            record.description = manifest
+                .get("description")
+                .and_then(Value::as_str)
+                .map(String::from);
         }
 
-        self.blobs.put(&record.module_key, wasm, "application/wasm").await?;
+        self.blobs
+            .put(&record.module_key, wasm, "application/wasm")
+            .await?;
         self.save(&record).await?;
         if let Some(old) = existing
             && old.module_key != record.module_key
@@ -232,7 +271,9 @@ impl PluginManager {
         }
         if let Some(hosts) = settings.allowed_hosts {
             if !hosts.is_empty() && !self.limits.allow_http {
-                return Err(CmsError::validation("outgoing HTTP from plugins is disabled on this server"));
+                return Err(CmsError::validation(
+                    "outgoing HTTP from plugins is disabled on this server",
+                ));
             }
             if let Some(bad) = hosts.iter().find(|h| !HOST.is_match(h)) {
                 return Err(CmsError::validation(format!("invalid host `{bad}`")));
@@ -241,7 +282,10 @@ impl PluginManager {
         }
         if let Some(v) = settings.timeout_ms {
             if v == 0 || v > self.limits.max_timeout_ms {
-                return Err(CmsError::validation(format!("timeout must be 1..={} ms", self.limits.max_timeout_ms)));
+                return Err(CmsError::validation(format!(
+                    "timeout must be 1..={} ms",
+                    self.limits.max_timeout_ms
+                )));
             }
             record.timeout_ms = v;
         }
@@ -278,7 +322,12 @@ impl PluginManager {
     /// Loads enabled plugins and registers them as hooks on `cms`. Cheap when
     /// nothing changed; call it on startup and periodically.
     pub async fn refresh(&self, cms: &Cms) -> Result<()> {
-        let mut enabled: Vec<PluginRecord> = self.records().await?.into_iter().filter(|r| r.enabled).collect();
+        let mut enabled: Vec<PluginRecord> = self
+            .records()
+            .await?
+            .into_iter()
+            .filter(|r| r.enabled)
+            .collect();
         enabled.sort_by(|a, b| a.name.cmp(&b.name));
         let fingerprint = serde_json::to_string(&enabled).map_err(CmsError::storage)?;
         let mut loaded = self.loaded.lock().await;
@@ -308,29 +357,46 @@ impl PluginManager {
         }
         let mut ordered: Vec<_> = hooks.values().cloned().collect();
         ordered.sort_by(|a, b| a.record.name.cmp(&b.record.name));
-        cms.hooks().replace_prefixed(HOOK_PREFIX, ordered.into_iter().map(|h| h as Arc<dyn Hook>).collect());
+        cms.hooks().replace_prefixed(
+            HOOK_PREFIX,
+            ordered.into_iter().map(|h| h as Arc<dyn Hook>).collect(),
+        );
         tracing::info!(plugins = ?hooks.keys().collect::<Vec<_>>(), "plugins loaded");
         *loaded = Loaded { fingerprint, hooks };
         Ok(())
     }
 
     async fn load(&self, record: &PluginRecord) -> Result<WasmHook> {
-        let wasm = self
-            .blobs
-            .get(&record.module_key)
-            .await?
-            .ok_or_else(|| CmsError::Plugin(format!("module of `{}` is missing", record.name)))?;
-        let digest: String = Sha256::digest(&wasm).iter().map(|b| format!("{b:02x}")).collect();
+        let wasm =
+            self.blobs.get(&record.module_key).await?.ok_or_else(|| {
+                CmsError::Plugin(format!("module of `{}` is missing", record.name))
+            })?;
+        let digest: String = Sha256::digest(&wasm)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         if digest != record.sha256 {
-            return Err(CmsError::Plugin(format!("module of `{}` does not match its checksum", record.name)));
+            return Err(CmsError::Plugin(format!(
+                "module of `{}` does not match its checksum",
+                record.name
+            )));
         }
         let sandbox = PluginRecord {
-            allowed_hosts: if self.limits.allow_http { record.allowed_hosts.clone() } else { vec![] },
+            allowed_hosts: if self.limits.allow_http {
+                record.allowed_hosts.clone()
+            } else {
+                vec![]
+            },
             ..record.clone()
         };
         let instance = tokio::task::spawn_blocking(move || instantiate(&wasm, &sandbox))
             .await
             .map_err(CmsError::storage)??;
-        Ok(WasmHook::new(record.clone(), instance, self.refs.clone(), self.errors.clone()))
+        Ok(WasmHook::new(
+            record.clone(),
+            instance,
+            self.refs.clone(),
+            self.errors.clone(),
+        ))
     }
 }

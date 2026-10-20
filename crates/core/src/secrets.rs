@@ -35,11 +35,18 @@ impl SecretBox {
     /// `secret` must hold at least 32 bytes of entropy (e.g. `openssl rand -hex 32`).
     pub fn new(secret: &[u8]) -> Result<Self> {
         if secret.len() < 32 {
-            return Err(CmsError::validation("the secrets key must be at least 32 bytes"));
+            return Err(CmsError::validation(
+                "the secrets key must be at least 32 bytes",
+            ));
         }
         use sha2::Digest;
-        let key: [u8; 32] = sha2::Sha256::new_with_prefix(b"tess-secrets-v1\0").chain_update(secret).finalize().into();
-        Ok(SecretBox { cipher: XChaCha20Poly1305::new(&key.into()) })
+        let key: [u8; 32] = sha2::Sha256::new_with_prefix(b"tess-secrets-v1\0")
+            .chain_update(secret)
+            .finalize()
+            .into();
+        Ok(SecretBox {
+            cipher: XChaCha20Poly1305::new(&key.into()),
+        })
     }
 
     pub fn seal(&self, purpose: &str, plain: &str) -> String {
@@ -47,7 +54,13 @@ impl SecretBox {
         getrandom::fill(&mut nonce).expect("OS random number generator");
         let sealed = self
             .cipher
-            .encrypt(&XNonce::from(nonce), Payload { msg: plain.as_bytes(), aad: purpose.as_bytes() })
+            .encrypt(
+                &XNonce::from(nonce),
+                Payload {
+                    msg: plain.as_bytes(),
+                    aad: purpose.as_bytes(),
+                },
+            )
             .expect("encryption with a valid key cannot fail");
         let mut raw = nonce.to_vec();
         raw.extend(sealed);
@@ -55,14 +68,30 @@ impl SecretBox {
     }
 
     pub fn open(&self, purpose: &str, sealed: &str) -> Result<String> {
-        let bad = || CmsError::Storage(format!("cannot decrypt a stored secret ({purpose}): wrong TESS_SECRETS_KEY?"));
-        let raw = sealed.strip_prefix(PREFIX).and_then(|b| URL_SAFE_NO_PAD.decode(b).ok()).ok_or_else(bad)?;
+        let bad = || {
+            CmsError::Storage(format!(
+                "cannot decrypt a stored secret ({purpose}): wrong TESS_SECRETS_KEY?"
+            ))
+        };
+        let raw = sealed
+            .strip_prefix(PREFIX)
+            .and_then(|b| URL_SAFE_NO_PAD.decode(b).ok())
+            .ok_or_else(bad)?;
         if raw.len() <= NONCE_LEN {
             return Err(bad());
         }
         let (nonce, msg) = raw.split_at(NONCE_LEN);
         let nonce = XNonce::try_from(nonce).map_err(|_| bad())?;
-        let plain = self.cipher.decrypt(&nonce, Payload { msg, aad: purpose.as_bytes() }).map_err(|_| bad())?;
+        let plain = self
+            .cipher
+            .decrypt(
+                &nonce,
+                Payload {
+                    msg,
+                    aad: purpose.as_bytes(),
+                },
+            )
+            .map_err(|_| bad())?;
         String::from_utf8(plain).map_err(|_| bad())
     }
 }
@@ -85,7 +114,12 @@ mod tests {
         assert!(s.starts_with("v1:"));
         assert_eq!(b.open("webhook/1", &s).unwrap(), "hunter2");
         assert!(b.open("webhook/2", &s).is_err());
-        assert!(SecretBox::new(&[8u8; 32]).unwrap().open("webhook/1", &s).is_err());
+        assert!(
+            SecretBox::new(&[8u8; 32])
+                .unwrap()
+                .open("webhook/1", &s)
+                .is_err()
+        );
         assert!(b.open("webhook/1", "v1:garbage").is_err());
         assert!(SecretBox::new(b"short").is_err());
         assert_ne!(random_secret(), random_secret());

@@ -15,6 +15,13 @@ Generate every secret with a fresh random value:
 openssl rand -hex 32
 ```
 
+## License
+
+| Variable | Default | Description |
+|---|---|---|
+| `TESS_LICENSE` | `community` | `community` (personal use) or `commercial` (any commercial use, see [Community & Enterprise](../editions.md)). The commercial license excludes the embedded n8n workflow editor: `TESS_N8N_URL` is then ignored. |
+| `TESS_LICENSE_KEY` | | Required with `commercial`: your license key (`tess_…`). Tess refuses to start without a valid one. Never logged or returned by the API. |
+
 ## Secrets and authentication
 
 | Variable | Default | Description |
@@ -54,6 +61,7 @@ IAM role of the function or task, `AWS_*` variables, or a profile. See
 | `TESS_MEDIA_DIR` | `data/media` | Directory for `fs`. |
 | `TESS_S3_BUCKET` | | Bucket for `s3` (required). |
 | `TESS_S3_ENDPOINT` | unset | Endpoint of S3-compatible services (Garage, MinIO, R2…). |
+| `TESS_S3_PUBLIC_ENDPOINT` | `TESS_S3_ENDPOINT` | Endpoint as browsers reach it, for presigned file URLs, when Tess uses an internal one (e.g. `http://garage:3900` in Docker, `http://localhost:3900` or `https://s3.example.com` for browsers). |
 | `TESS_S3_REGION` | from the AWS chain | Region (Garage uses `garage` by default). |
 | `TESS_S3_FORCE_PATH_STYLE` | `true` when an endpoint is set | Path-style URLs, needed by most self-hosted services. |
 | `TESS_S3_ACCESS_KEY_ID` / `TESS_S3_SECRET_ACCESS_KEY` | unset | Explicit credentials. Set both, or neither to use the default AWS chain. |
@@ -79,8 +87,8 @@ See [Search](search.md).
 
 | Variable | Default | Description |
 |---|---|---|
-| `TESS_CACHE` | `none` | `none`, `valkey` (Valkey or any Redis-compatible server, shared by every instance) or `memory` (one instance). |
-| `VALKEY_URL` | | `redis://[user:password@]host:6379/0`, or `rediss://` for TLS. |
+| `TESS_CACHE` | `none` | `none`, `memory` (one instance), or a server shared by every instance: `valkey`, `redis`, `keydb` or `dragonfly` (any server speaking the Redis protocol works). |
+| `TESS_CACHE_URL` | | `redis://[user:password@]host:6379/0`, or `rediss://` for TLS. `VALKEY_URL` and `REDIS_URL` are read too. |
 | `TESS_CACHE_TTL_SECS` | `60` | Lifetime of cached responses; capped at half of `TESS_MEDIA_URL_TTL_SECS` and `TESS_ID_TTL`. |
 | `TESS_CACHE_PREFIX` | `tess:` | Prefix of keys and channels, to share a server between installs. |
 | `TESS_CACHE_MAX_ENTRIES` | `10000` | `memory` only. |

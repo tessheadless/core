@@ -7,9 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use serde_json::{Map, Value, json};
 use tess_core::model::format_ts;
 use tess_core::{Actor, CmsError, ContentType, Entry, EntryAction, EntryEvent, Hook, Result};
-use serde_json::{Map, Value, json};
 
 use crate::PluginRecord;
 use crate::manager::RefFn;
@@ -34,8 +34,13 @@ pub(crate) async fn call(
     input: Vec<u8>,
 ) -> std::result::Result<Vec<u8>, String> {
     tokio::task::spawn_blocking(move || {
-        let mut plugin = instance.lock().map_err(|_| "plugin instance poisoned".to_string())?;
-        let out = plugin.call::<&[u8], &[u8]>(function, &input).map(|o| o.to_vec()).map_err(|e| format!("{e:#}"));
+        let mut plugin = instance
+            .lock()
+            .map_err(|_| "plugin instance poisoned".to_string())?;
+        let out = plugin
+            .call::<&[u8], &[u8]>(function, &input)
+            .map(|o| o.to_vec())
+            .map_err(|e| format!("{e:#}"));
         // A trap or timeout can leave the instance in a bad state.
         if out.is_err() {
             let _ = plugin.reset();
@@ -85,7 +90,8 @@ impl WasmHook {
     }
 
     fn applies_to(&self, content_type: &str) -> bool {
-        self.record.content_types.is_empty() || self.record.content_types.iter().any(|c| c == content_type)
+        self.record.content_types.is_empty()
+            || self.record.content_types.iter().any(|c| c == content_type)
     }
 
     fn exports(&self, f: &str) -> bool {
@@ -136,7 +142,13 @@ impl Hook for WasmHook {
             "config": self.record.config,
         });
         let name = &self.record.name;
-        let output = match call(self.instance.clone(), "before_write", input.to_string().into_bytes()).await {
+        let output = match call(
+            self.instance.clone(),
+            "before_write",
+            input.to_string().into_bytes(),
+        )
+        .await
+        {
             Ok(out) => out,
             Err(e) => {
                 self.record_error(&e);
@@ -155,7 +167,11 @@ impl Hook for WasmHook {
             Err(e) => {
                 let msg = format!("`{name}` returned invalid JSON: {e}");
                 self.record_error(&msg);
-                return if self.record.fail_open { Ok(()) } else { Err(CmsError::Plugin(msg)) };
+                return if self.record.fail_open {
+                    Ok(())
+                } else {
+                    Err(CmsError::Plugin(msg))
+                };
             }
         };
         if let Some(err) = parsed.get("error").and_then(Value::as_str) {
@@ -179,7 +195,13 @@ impl Hook for WasmHook {
             "actor": { "name": event.actor.name },
             "config": self.record.config,
         });
-        if let Err(e) = call(self.instance.clone(), "after_write", input.to_string().into_bytes()).await {
+        if let Err(e) = call(
+            self.instance.clone(),
+            "after_write",
+            input.to_string().into_bytes(),
+        )
+        .await
+        {
             self.record_error(&e);
         }
     }

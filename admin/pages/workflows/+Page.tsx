@@ -36,6 +36,7 @@ function Workflows() {
       </div>
     );
   }
+  if (data?.license === "COMMERCIAL") return <NotIncluded />;
   if (!editor) return <Setup isAdmin={isAdmin} />;
 
   return (
@@ -63,6 +64,18 @@ function Workflows() {
         className="w-full flex-1 border-0"
         allow="clipboard-read; clipboard-write"
       />
+    </div>
+  );
+}
+
+function NotIncluded() {
+  return (
+    <div className="prose max-w-3xl">
+      <h1>Workflows</h1>
+      <p>
+        The embedded n8n workflow editor isn&apos;t available with the commercial license of Tess. Webhooks still send
+        content, model and translation events to the automation tools of your choice.
+      </p>
     </div>
   );
 }

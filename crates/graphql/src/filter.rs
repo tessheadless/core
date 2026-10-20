@@ -5,10 +5,10 @@
 //! Translation of `XxxWhereInput` / `XxxOrderByInput` arguments into the
 //! backend-neutral query language.
 
+use serde_json::Value;
 use tess_core::model::{format_ts, parse_ts};
 use tess_core::query::{Direction, Filter, Op, SortKey};
 use tess_core::{CmsError, ContentType, FieldType, Result};
-use serde_json::Value;
 
 /// Operator suffixes available in where inputs (`title_contains`, ...).
 pub const SUFFIXES: &[(&str, Op)] = &[
@@ -96,7 +96,9 @@ pub fn filterable_fields(ct: &ContentType) -> Vec<(String, FilterKind)> {
 
 /// Sortable fields, used to generate the `XxxOrderByInput` enum.
 pub fn sortable_fields(ct: &ContentType) -> Vec<String> {
-    let mut out: Vec<String> = ["id", "createdAt", "updatedAt", "publishedAt"].map(String::from).into();
+    let mut out: Vec<String> = ["id", "createdAt", "updatedAt", "publishedAt"]
+        .map(String::from)
+        .into();
     out.extend(
         ct.fields
             .iter()
@@ -148,7 +150,11 @@ pub fn parse_where(ct: &ContentType, input: &Value) -> Result<Option<Filter>> {
                 }
                 let value = normalize(kind, value)?;
                 let cmp = Filter::cmp(field, op, value);
-                clauses.push(if suffix == "not_contains" { Filter::Not(Box::new(cmp)) } else { cmp });
+                clauses.push(if suffix == "not_contains" {
+                    Filter::Not(Box::new(cmp))
+                } else {
+                    cmp
+                });
             }
         }
     }
@@ -165,7 +171,9 @@ fn normalize(kind: FilterKind, value: &Value) -> Result<Value> {
     let parse: fn(&str) -> Option<String> = match kind {
         FilterKind::DateTime => |s| parse_ts(s).map(format_ts),
         FilterKind::Date => |s| {
-            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok().map(|d| d.format("%Y-%m-%d").to_string())
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .ok()
+                .map(|d| d.format("%Y-%m-%d").to_string())
         },
         FilterKind::Uuid => |s| uuid::Uuid::parse_str(s).ok().map(|u| u.to_string()),
         _ => return Ok(value.clone()),
@@ -176,7 +184,9 @@ fn normalize(kind: FilterKind, value: &Value) -> Result<Value> {
             Value::String(s) => parse(s)
                 .map(Value::String)
                 .ok_or_else(|| CmsError::validation(format!("invalid value `{s}` in filter"))),
-            other => Err(CmsError::validation(format!("invalid value `{other}` in filter"))),
+            other => Err(CmsError::validation(format!(
+                "invalid value `{other}` in filter"
+            ))),
         }
     };
     match value {
@@ -208,7 +218,10 @@ pub fn decode_where_ids(
         let field = key.split_once('_').map_or(key.as_str(), |(f, _)| f);
         let expected = match ct.field(field).map(|f| &f.field_type) {
             _ if field == "id" => ct.api_id.as_str(),
-            Some(FieldType::Relation { target, many: false }) => target.as_str(),
+            Some(FieldType::Relation {
+                target,
+                many: false,
+            }) => target.as_str(),
             _ => continue,
         };
         match value {
@@ -244,7 +257,10 @@ pub fn parse_order_by(input: &Value) -> Result<Vec<SortKey>> {
                 "DESC" => Direction::Desc,
                 _ => return Err(CmsError::validation(format!("invalid orderBy `{s}`"))),
             };
-            Ok(SortKey { field: field.to_string(), direction })
+            Ok(SortKey {
+                field: field.to_string(),
+                direction,
+            })
         })
         .collect()
 }

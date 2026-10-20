@@ -21,10 +21,18 @@ const LOG_PREFIX: &str = "webhook-log/";
 const CACHE_TTL: Duration = Duration::from_secs(10);
 const MAX_ERROR_LEN: usize = 500;
 
-static EVENT_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(\*|[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)*(\.\*)?)$").unwrap());
-static HEADER_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9-]{1,64}$").unwrap());
-const RESERVED_HEADERS: &[&str] = &["content-type", "content-length", "host", "user-agent", "transfer-encoding"];
+static EVENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(\*|[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)*(\.\*)?)$").unwrap()
+});
+static HEADER_NAME: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9-]{1,64}$").unwrap());
+const RESERVED_HEADERS: &[&str] = &[
+    "content-type",
+    "content-length",
+    "host",
+    "user-agent",
+    "transfer-encoding",
+];
 
 /// Encodes an entry id for the API (opaque ids, stable refs).
 pub type IdFn = Arc<dyn Fn(&str, Uuid) -> String + Send + Sync>;
@@ -140,7 +148,13 @@ fn host_allowed(allowed: &[String], host: &str) -> bool {
 }
 
 impl WebhookService {
-    pub fn new(storage: Arc<dyn Storage>, secrets: SecretBox, ids: IdFn, refs: IdFn, config: WebhookConfig) -> Self {
+    pub fn new(
+        storage: Arc<dyn Storage>,
+        secrets: SecretBox,
+        ids: IdFn,
+        refs: IdFn,
+        config: WebhookConfig,
+    ) -> Self {
         let client = reqwest::Client::builder()
             .timeout(config.timeout)
             // A redirect could point anywhere: receivers must answer directly.
@@ -184,7 +198,13 @@ impl WebhookService {
     pub fn events(&self) -> Vec<String> {
         let mut all: Vec<String> = EntryAction::ALL.iter().map(|a| a.event_name()).collect();
         all.extend(MODEL_EVENTS.iter().map(|e| e.to_string()));
-        all.extend(self.extra_events.read().expect("events lock").iter().cloned());
+        all.extend(
+            self.extra_events
+                .read()
+                .expect("events lock")
+                .iter()
+                .cloned(),
+        );
         all.push("webhook.ping".into());
         all
     }
@@ -199,12 +219,21 @@ impl WebhookService {
             .into_iter()
             .map(|(_, v)| serde_json::from_value(v).map_err(CmsError::storage))
             .collect::<Result<_>>()?;
-        all.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()).then(a.id.cmp(&b.id)));
+        all.sort_by(|a, b| {
+            a.name
+                .to_lowercase()
+                .cmp(&b.name.to_lowercase())
+                .then(a.id.cmp(&b.id))
+        });
         Ok(all)
     }
 
     pub async fn get(&self, id: &str) -> Result<WebhookRecord> {
-        let v = self.storage.get_setting(&key(id)).await?.ok_or_else(|| CmsError::NotFound(format!("webhook `{id}`")))?;
+        let v = self
+            .storage
+            .get_setting(&key(id))
+            .await?
+            .ok_or_else(|| CmsError::NotFound(format!("webhook `{id}`")))?;
         serde_json::from_value(v).map_err(CmsError::storage)
     }
 
@@ -220,29 +249,42 @@ impl WebhookService {
     }
 
     fn check_url(&self, url: &str) -> Result<()> {
-        let parsed = reqwest::Url::parse(url).map_err(|_| CmsError::validation(format!("`{url}` is not a valid URL")))?;
+        let parsed = reqwest::Url::parse(url)
+            .map_err(|_| CmsError::validation(format!("`{url}` is not a valid URL")))?;
         if !matches!(parsed.scheme(), "http" | "https") {
             return Err(CmsError::validation("webhook URLs must use http or https"));
         }
         if !parsed.username().is_empty() || parsed.password().is_some() {
-            return Err(CmsError::validation("put credentials in a header, not in the URL"));
+            return Err(CmsError::validation(
+                "put credentials in a header, not in the URL",
+            ));
         }
-        let host = parsed.host_str().ok_or_else(|| CmsError::validation("the webhook URL has no host"))?;
+        let host = parsed
+            .host_str()
+            .ok_or_else(|| CmsError::validation("the webhook URL has no host"))?;
         if !host_allowed(&self.config.allowed_hosts, host) {
-            return Err(CmsError::validation(format!("`{host}` is not in TESS_WEBHOOK_ALLOWED_HOSTS")));
+            return Err(CmsError::validation(format!(
+                "`{host}` is not in TESS_WEBHOOK_ALLOWED_HOSTS"
+            )));
         }
         Ok(())
     }
 
     fn check_fields(name: &str, events: &[String]) -> Result<()> {
         if name.trim().is_empty() || name.chars().count() > 100 {
-            return Err(CmsError::validation("the webhook name must have 1 to 100 characters"));
+            return Err(CmsError::validation(
+                "the webhook name must have 1 to 100 characters",
+            ));
         }
         if events.is_empty() {
-            return Err(CmsError::validation("subscribe the webhook to at least one event"));
+            return Err(CmsError::validation(
+                "subscribe the webhook to at least one event",
+            ));
         }
         if let Some(bad) = events.iter().find(|e| !EVENT_PATTERN.is_match(e)) {
-            return Err(CmsError::validation(format!("invalid event pattern `{bad}`")));
+            return Err(CmsError::validation(format!(
+                "invalid event pattern `{bad}`"
+            )));
         }
         Ok(())
     }
@@ -253,28 +295,47 @@ impl WebhookService {
             .into_iter()
             .map(|(name, value)| {
                 let lower = name.to_ascii_lowercase();
-                if !HEADER_NAME.is_match(&name) || RESERVED_HEADERS.contains(&lower.as_str()) || lower.starts_with("x-tess-")
+                if !HEADER_NAME.is_match(&name)
+                    || RESERVED_HEADERS.contains(&lower.as_str())
+                    || lower.starts_with("x-tess-")
                 {
-                    return Err(CmsError::validation(format!("header `{name}` cannot be set")));
+                    return Err(CmsError::validation(format!(
+                        "header `{name}` cannot be set"
+                    )));
                 }
                 if !seen.insert(lower) {
-                    return Err(CmsError::validation(format!("header `{name}` is given twice")));
+                    return Err(CmsError::validation(format!(
+                        "header `{name}` is given twice"
+                    )));
                 }
                 if value.chars().any(|c| c.is_control()) {
-                    return Err(CmsError::validation(format!("the value of `{name}` contains control characters")));
+                    return Err(CmsError::validation(format!(
+                        "the value of `{name}` contains control characters"
+                    )));
                 }
-                Ok(SealedHeader { value: self.secrets.seal(&header_purpose(id, &name), &value), name })
+                Ok(SealedHeader {
+                    value: self.secrets.seal(&header_purpose(id, &name), &value),
+                    name,
+                })
             })
             .collect()
     }
 
     /// Returns the webhook and its signing secret (shown once).
-    pub async fn create(&self, input: WebhookInput, actor: &Actor) -> Result<(WebhookRecord, String)> {
+    pub async fn create(
+        &self,
+        input: WebhookInput,
+        actor: &Actor,
+    ) -> Result<(WebhookRecord, String)> {
         actor.require_admin()?;
         Self::check_fields(&input.name, &input.events)?;
         self.check_url(&input.url)?;
         let secret = match input.secret {
-            Some(s) if s.len() < 16 => return Err(CmsError::validation("the signing secret must have at least 16 characters")),
+            Some(s) if s.len() < 16 => {
+                return Err(CmsError::validation(
+                    "the signing secret must have at least 16 characters",
+                ));
+            }
             Some(s) => s,
             None => random_secret(),
         };
@@ -298,7 +359,12 @@ impl WebhookService {
         Ok((record, secret))
     }
 
-    pub async fn update(&self, id: &str, update: WebhookUpdate, actor: &Actor) -> Result<WebhookRecord> {
+    pub async fn update(
+        &self,
+        id: &str,
+        update: WebhookUpdate,
+        actor: &Actor,
+    ) -> Result<WebhookRecord> {
         actor.require_admin()?;
         let mut r = self.get(id).await?;
         if let Some(name) = update.name {
@@ -341,7 +407,11 @@ impl WebhookService {
         if !self.storage.delete_setting(&key(id)).await? {
             return Err(CmsError::NotFound(format!("webhook `{id}`")));
         }
-        for (k, _) in self.storage.list_settings(&format!("{LOG_PREFIX}{id}/")).await? {
+        for (k, _) in self
+            .storage
+            .list_settings(&format!("{LOG_PREFIX}{id}/"))
+            .await?
+        {
             self.storage.delete_setting(&k).await?;
         }
         self.invalidate();
@@ -391,11 +461,26 @@ impl WebhookService {
         hooks
     }
 
-    pub(crate) async fn matching(&self, event: &str, content_type: Option<&str>) -> Vec<WebhookRecord> {
-        self.subscriptions().await.iter().filter(|h| h.subscribes_to(event, content_type)).cloned().collect()
+    pub(crate) async fn matching(
+        &self,
+        event: &str,
+        content_type: Option<&str>,
+    ) -> Vec<WebhookRecord> {
+        self.subscriptions()
+            .await
+            .iter()
+            .filter(|h| h.subscribes_to(event, content_type))
+            .cloned()
+            .collect()
     }
 
-    pub(crate) fn envelope(&self, event: &str, content_type: Option<&str>, data: Value, actor: &ActorRef) -> Value {
+    pub(crate) fn envelope(
+        &self,
+        event: &str,
+        content_type: Option<&str>,
+        data: Value,
+        actor: &ActorRef,
+    ) -> Value {
         let mut v = json!({
             "id": Uuid::new_v4().to_string(),
             "event": event,
@@ -427,7 +512,12 @@ impl WebhookService {
         }
     }
 
-    async fn deliver(&self, hook: &WebhookRecord, delivery: Value, max_attempts: u32) -> DeliveryRecord {
+    async fn deliver(
+        &self,
+        hook: &WebhookRecord,
+        delivery: Value,
+        max_attempts: u32,
+    ) -> DeliveryRecord {
         let body = serde_json::to_vec(&delivery).unwrap_or_default();
         let created = now();
         let mut record = DeliveryRecord {
@@ -442,7 +532,12 @@ impl WebhookService {
             created_at: format_ts(created),
             updated_at: format_ts(created),
         };
-        let log_key = format!("{LOG_PREFIX}{}/{:013}-{}", hook.id, created.timestamp_millis(), record.id);
+        let log_key = format!(
+            "{LOG_PREFIX}{}/{:013}-{}",
+            hook.id,
+            created.timestamp_millis(),
+            record.id
+        );
         for attempt in 1..=max_attempts {
             let outcome = self.send_once(hook, &record.id, &record.event, &body).await;
             record.attempts = attempt;
@@ -464,13 +559,23 @@ impl WebhookService {
                 break;
             }
             let delays = &self.config.retry_delays;
-            let wait = delays.get(attempt as usize - 1).or(delays.last()).copied().unwrap_or(Duration::from_secs(30));
+            let wait = delays
+                .get(attempt as usize - 1)
+                .or(delays.last())
+                .copied()
+                .unwrap_or(Duration::from_secs(30));
             tokio::time::sleep(wait).await;
         }
         record
     }
 
-    async fn send_once(&self, hook: &WebhookRecord, delivery_id: &str, event: &str, body: &[u8]) -> DeliveryOutcome {
+    async fn send_once(
+        &self,
+        hook: &WebhookRecord,
+        delivery_id: &str,
+        event: &str,
+        body: &[u8],
+    ) -> DeliveryOutcome {
         let started = Instant::now();
         let fail = |error: String, retryable: bool| DeliveryOutcome {
             ok: false,
@@ -494,7 +599,10 @@ impl WebhookService {
             .header("X-Tess-Webhook", &hook.id)
             .header("X-Tess-Signature", signature(&secret, ts, body));
         for h in &hook.headers {
-            match self.secrets.open(&header_purpose(&hook.id, &h.name), &h.value) {
+            match self
+                .secrets
+                .open(&header_purpose(&hook.id, &h.name), &h.value)
+            {
                 Ok(v) => req = req.header(&h.name, v),
                 Err(e) => return fail(e.to_string(), false),
             }
@@ -502,7 +610,11 @@ impl WebhookService {
         match req.body(body.to_vec()).send().await {
             Ok(res) => {
                 let status = res.status();
-                let text = if status.is_success() { String::new() } else { res.text().await.unwrap_or_default() };
+                let text = if status.is_success() {
+                    String::new()
+                } else {
+                    res.text().await.unwrap_or_default()
+                };
                 let code = status.as_u16();
                 DeliveryOutcome {
                     ok: status.is_success(),

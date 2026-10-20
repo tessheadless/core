@@ -24,7 +24,9 @@ fn var_or(name: &str, default: &str) -> String {
 
 fn parse_var<T: std::str::FromStr>(name: &str, default: T) -> Result<T> {
     match var(name) {
-        Some(v) => v.parse().map_err(|_| anyhow::anyhow!("invalid value for {name}: `{v}`")),
+        Some(v) => v
+            .parse()
+            .map_err(|_| anyhow::anyhow!("invalid value for {name}: `{v}`")),
         None => Ok(default),
     }
 }
@@ -76,7 +78,10 @@ impl Config {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect(),
-            cors_origins: var_or("TESS_CORS_ORIGINS", "*").split(',').map(|s| s.trim().to_string()).collect(),
+            cors_origins: var_or("TESS_CORS_ORIGINS", "*")
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect(),
             admin_dir: var("TESS_ADMIN_DIR").or_else(default_admin_dir),
             schema: SchemaConfig {
                 default_page_size: parse_var("TESS_DEFAULT_PAGE_SIZE", defaults.default_page_size)?,
@@ -96,26 +101,41 @@ impl Config {
 /// folder next to the binary (release archives).
 fn default_admin_dir() -> Option<String> {
     let mut candidates = vec![std::path::PathBuf::from("admin/dist/client")];
-    if let Some(dir) = std::env::current_exe().ok().as_deref().and_then(std::path::Path::parent) {
+    if let Some(dir) = std::env::current_exe()
+        .ok()
+        .as_deref()
+        .and_then(std::path::Path::parent)
+    {
         candidates.push(dir.join("admin"));
     }
-    candidates.into_iter().find(|d| d.join("index.html").exists()).map(|d| d.to_string_lossy().into_owned())
+    candidates
+        .into_iter()
+        .find(|d| d.join("index.html").exists())
+        .map(|d| d.to_string_lossy().into_owned())
 }
 
 /// Builds the opaque-id codec. Refuses to start without proper secrets.
 pub fn id_codec() -> Result<IdCodec> {
-    let secret = var("TESS_ID_SECRET").context("TESS_ID_SECRET is required (>= 32 bytes, random)")?;
-    let ref_secret = var("TESS_REF_SECRET").context("TESS_REF_SECRET is required (>= 32 bytes, random)")?;
+    let secret =
+        var("TESS_ID_SECRET").context("TESS_ID_SECRET is required (>= 32 bytes, random)")?;
+    let ref_secret =
+        var("TESS_REF_SECRET").context("TESS_REF_SECRET is required (>= 32 bytes, random)")?;
     let previous_secrets = var("TESS_ID_SECRET_PREVIOUS")
         .map(|v| v.split(',').map(|s| s.trim().as_bytes().to_vec()).collect())
         .unwrap_or_default();
     let ttl = parse_ttl(&var_or("TESS_ID_TTL", "24h"))?;
-    Ok(IdCodec::new(IdConfig { secret: secret.into_bytes(), previous_secrets, ref_secret: ref_secret.into_bytes(), ttl })?)
+    Ok(IdCodec::new(IdConfig {
+        secret: secret.into_bytes(),
+        previous_secrets,
+        ref_secret: ref_secret.into_bytes(),
+        ttl,
+    })?)
 }
 
 /// User accounts and sessions. Refuses to start without a session secret.
 pub fn auth_service(storage: Arc<dyn Storage>) -> Result<Arc<tess_auth::AuthService>> {
-    let secret = var("TESS_SESSION_SECRET").context("TESS_SESSION_SECRET is required (>= 32 bytes, random)")?;
+    let secret = var("TESS_SESSION_SECRET")
+        .context("TESS_SESSION_SECRET is required (>= 32 bytes, random)")?;
     let key = tess_auth::SessionKey::new(secret.as_bytes())
         .context("TESS_SESSION_SECRET must be at least 32 bytes")?;
     let ttl = parse_ttl(&var_or("TESS_SESSION_TTL", "12h"))?;
@@ -132,7 +152,8 @@ pub async fn storage() -> Result<Arc<dyn Storage>> {
         }
         #[cfg(feature = "sql")]
         "postgres" | "mysql" | "sqlite" => {
-            let url = var("DATABASE_URL").with_context(|| format!("DATABASE_URL is required for {kind}"))?;
+            let url = var("DATABASE_URL")
+                .with_context(|| format!("DATABASE_URL is required for {kind}"))?;
             let dialect = tess_storage_sql::Dialect::from_url(&url);
             let expected = match kind.as_str() {
                 "postgres" => tess_storage_sql::Dialect::Postgres,
@@ -160,21 +181,34 @@ pub async fn storage() -> Result<Arc<dyn Storage>> {
             let table = var_or("DYNAMODB_TABLE", "tess");
             let endpoint = var("DYNAMODB_ENDPOINT");
             let create = bool_var("DYNAMODB_CREATE_TABLE", false)?;
-            Arc::new(tess_storage_dynamodb::DynamoDbStorage::connect(&table, endpoint.as_deref(), create).await)
+            Arc::new(
+                tess_storage_dynamodb::DynamoDbStorage::connect(
+                    &table,
+                    endpoint.as_deref(),
+                    create,
+                )
+                .await,
+            )
         }
         #[cfg(feature = "rocksdb")]
         "rocksdb" => {
             if running_on_lambda() {
                 bail!("rocksdb is a local embedded database and cannot be used on AWS Lambda");
             }
-            Arc::new(tess_storage_rocksdb::RocksDbStorage::open(var_or("ROCKSDB_PATH", "data/rocksdb"))?)
+            Arc::new(tess_storage_rocksdb::RocksDbStorage::open(var_or(
+                "ROCKSDB_PATH",
+                "data/rocksdb",
+            ))?)
         }
         other => bail!(
             "unsupported TESS_DATABASE `{other}` (memory, postgres, mysql, sqlite, mongodb, dynamodb, rocksdb; \
              a backend is only available when compiled with its cargo feature)"
         ),
     };
-    storage.migrate().await.with_context(|| format!("{kind}: migration failed"))?;
+    storage
+        .migrate()
+        .await
+        .with_context(|| format!("{kind}: migration failed"))?;
     Ok(storage)
 }
 
@@ -186,20 +220,31 @@ pub async fn blob_store() -> Result<Arc<dyn tess_media::BlobStore>> {
             if running_on_lambda() {
                 bail!("TESS_MEDIA_STORE=fs is not persistent on AWS Lambda; use s3");
             }
-            Ok(Arc::new(tess_media::FsBlobStore::new(var_or("TESS_MEDIA_DIR", "data/media"))))
+            Ok(Arc::new(tess_media::FsBlobStore::new(var_or(
+                "TESS_MEDIA_DIR",
+                "data/media",
+            ))))
         }
         #[cfg(feature = "s3")]
         "s3" => {
-            let credentials = match (var("TESS_S3_ACCESS_KEY_ID"), var("TESS_S3_SECRET_ACCESS_KEY")) {
+            let credentials = match (
+                var("TESS_S3_ACCESS_KEY_ID"),
+                var("TESS_S3_SECRET_ACCESS_KEY"),
+            ) {
                 (Some(id), Some(secret)) => Some((id, secret)),
                 (None, None) => None, // default AWS chain (IAM role, env, profile)
-                _ => bail!("set both TESS_S3_ACCESS_KEY_ID and TESS_S3_SECRET_ACCESS_KEY, or neither"),
+                _ => bail!(
+                    "set both TESS_S3_ACCESS_KEY_ID and TESS_S3_SECRET_ACCESS_KEY, or neither"
+                ),
             };
             let endpoint = var("TESS_S3_ENDPOINT");
             let store = tess_media::S3BlobStore::connect(tess_media::S3Config {
-                bucket: var("TESS_S3_BUCKET").context("TESS_S3_BUCKET is required for the s3 media store")?,
+                bucket: var("TESS_S3_BUCKET")
+                    .context("TESS_S3_BUCKET is required for the s3 media store")?,
                 force_path_style: bool_var("TESS_S3_FORCE_PATH_STYLE", endpoint.is_some())?,
                 endpoint,
+                // Where browsers reach the store, for presigned URLs.
+                public_endpoint: var("TESS_S3_PUBLIC_ENDPOINT"),
                 region: var("TESS_S3_REGION"),
                 credentials,
             })
@@ -217,7 +262,10 @@ pub fn media_config() -> Result<tess_media::MediaConfig> {
     let defaults = tess_media::MediaConfig::default();
     Ok(tess_media::MediaConfig {
         public_base_url: var("TESS_MEDIA_PUBLIC_URL"),
-        url_ttl: Duration::from_secs(parse_var("TESS_MEDIA_URL_TTL_SECS", defaults.url_ttl.as_secs())?),
+        url_ttl: Duration::from_secs(parse_var(
+            "TESS_MEDIA_URL_TTL_SECS",
+            defaults.url_ttl.as_secs(),
+        )?),
         max_upload_bytes: parse_var("TESS_MEDIA_MAX_UPLOAD_BYTES", defaults.max_upload_bytes)?,
         proxy_path: defaults.proxy_path,
     })
@@ -228,38 +276,71 @@ pub fn search_engine() -> Result<Option<Arc<dyn tess_search::SearchEngine>>> {
     match var_or("TESS_SEARCH", "none").as_str() {
         "none" => Ok(None),
         "memory" => Ok(Some(Arc::new(tess_search::MemoryEngine::default()))),
-        "typesense" => Ok(Some(Arc::new(tess_search::TypesenseEngine::new(tess_search::TypesenseConfig {
-            url: var("TYPESENSE_URL").context("TYPESENSE_URL is required for typesense search")?,
-            api_key: var("TYPESENSE_API_KEY").context("TYPESENSE_API_KEY is required for typesense search")?,
-            collection_prefix: var_or("TYPESENSE_COLLECTION_PREFIX", "tess_"),
-        })?))),
+        "typesense" => Ok(Some(Arc::new(tess_search::TypesenseEngine::new(
+            tess_search::TypesenseConfig {
+                url: var("TYPESENSE_URL")
+                    .context("TYPESENSE_URL is required for typesense search")?,
+                api_key: var("TYPESENSE_API_KEY")
+                    .context("TYPESENSE_API_KEY is required for typesense search")?,
+                collection_prefix: var_or("TYPESENSE_COLLECTION_PREFIX", "tess_"),
+            },
+        )?))),
         other => bail!("unsupported TESS_SEARCH `{other}` (none, memory, typesense)"),
     }
 }
 
-/// Response cache selected by `TESS_CACHE` (`none`, `memory`, `valkey`).
+/// Response cache selected by `TESS_CACHE`: `none`, `memory`, or a server
+/// speaking the Redis protocol at `TESS_CACHE_URL` (`valkey`, `redis`,
+/// `keydb`, `dragonfly`: one client, the name shows in logs and `/health`).
 /// Signed media URLs and opaque ids in cached responses must outlive them, so
 /// the TTL is capped at half the shortest of the two lifetimes.
-pub fn cache_service(media_url_ttl: Duration, id_ttl: Duration) -> Result<Option<tess_cache::CacheService>> {
+pub fn cache_service(
+    media_url_ttl: Duration,
+    id_ttl: Duration,
+) -> Result<Option<tess_cache::CacheService>> {
     let store: Arc<dyn tess_cache::CacheStore> = match var_or("TESS_CACHE", "none").as_str() {
         "none" => return Ok(None),
-        "memory" => Arc::new(tess_cache::MemoryStore::new(parse_var("TESS_CACHE_MAX_ENTRIES", 10_000)?)),
-        "valkey" | "redis" => {
-            let url = var("VALKEY_URL").context("VALKEY_URL is required for the valkey cache (redis://host:6379)")?;
-            Arc::new(tess_cache::ValkeyStore::new(&url)?)
+        "memory" => Arc::new(tess_cache::MemoryStore::new(parse_var(
+            "TESS_CACHE_MAX_ENTRIES",
+            10_000,
+        )?)),
+        kind @ ("valkey" | "redis" | "keydb" | "dragonfly") => {
+            // VALKEY_URL and REDIS_URL are still read, for older `.env` files.
+            let url = var("TESS_CACHE_URL")
+                .or_else(|| var("VALKEY_URL"))
+                .or_else(|| var("REDIS_URL"))
+                .with_context(|| {
+                    format!("TESS_CACHE_URL is required for the {kind} cache (redis://host:6379)")
+                })?;
+            let name = match kind {
+                "valkey" => "valkey",
+                "redis" => "redis",
+                "keydb" => "keydb",
+                _ => "dragonfly",
+            };
+            Arc::new(tess_cache::RedisStore::new(&url, name)?)
         }
-        other => bail!("unsupported TESS_CACHE `{other}` (none, memory, valkey)"),
+        other => bail!(
+            "unsupported TESS_CACHE `{other}` (none, memory, valkey, redis, keydb, dragonfly)"
+        ),
     };
     let mut ttl = Duration::from_secs(parse_var("TESS_CACHE_TTL_SECS", 60)?);
     let max = media_url_ttl.min(id_ttl) / 2;
     if ttl > max {
-        tracing::warn!(ttl = ttl.as_secs(), max = max.as_secs(), "TESS_CACHE_TTL_SECS capped: cached URLs and ids would expire");
+        tracing::warn!(
+            ttl = ttl.as_secs(),
+            max = max.as_secs(),
+            "TESS_CACHE_TTL_SECS capped: cached URLs and ids would expire"
+        );
         ttl = max;
     }
     if ttl.is_zero() {
         bail!("TESS_CACHE_TTL_SECS must be at least 1");
     }
-    let config = tess_cache::CacheConfig { ttl, prefix: var_or("TESS_CACHE_PREFIX", "tess:") };
+    let config = tess_cache::CacheConfig {
+        ttl,
+        prefix: var_or("TESS_CACHE_PREFIX", "tess:"),
+    };
     Ok(Some(tess_cache::CacheService::new(store, config)))
 }
 
@@ -284,15 +365,28 @@ pub fn secrets_key() -> Result<tess_core::secrets::SecretBox> {
     let (name, secret) = match var("TESS_SECRETS_KEY") {
         Some(s) => ("TESS_SECRETS_KEY", s),
         None => {
-            tracing::warn!("TESS_SECRETS_KEY is not set: stored integration secrets are sealed with TESS_SESSION_SECRET");
-            ("TESS_SESSION_SECRET", var("TESS_SESSION_SECRET").context("TESS_SESSION_SECRET is required")?)
+            tracing::warn!(
+                "TESS_SECRETS_KEY is not set: stored integration secrets are sealed with TESS_SESSION_SECRET"
+            );
+            (
+                "TESS_SESSION_SECRET",
+                var("TESS_SESSION_SECRET").context("TESS_SESSION_SECRET is required")?,
+            )
         }
     };
-    tess_core::secrets::SecretBox::new(secret.as_bytes()).with_context(|| format!("{name} must be at least 32 bytes"))
+    tess_core::secrets::SecretBox::new(secret.as_bytes())
+        .with_context(|| format!("{name} must be at least 32 bytes"))
 }
 
 fn list_var(name: &str) -> Vec<String> {
-    var(name).map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()).unwrap_or_default()
+    var(name)
+        .map(|v| {
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// `None` when `TESS_WEBHOOKS=false`.
@@ -316,7 +410,31 @@ pub fn i18n_config() -> Result<Option<tess_i18n::I18nConfig>> {
     if !bool_var("TESS_I18N", true)? {
         return Ok(None);
     }
-    Ok(Some(tess_i18n::I18nConfig { inline: running_on_lambda(), ..Default::default() }))
+    Ok(Some(tess_i18n::I18nConfig {
+        inline: running_on_lambda(),
+        ..Default::default()
+    }))
+}
+
+/// `TESS_LICENSE`: `community` (default) or `commercial`. The commercial
+/// license needs `TESS_LICENSE_KEY`; for now only its `tess_` prefix is
+/// checked. The key is never logged.
+pub fn license() -> Result<tess_graphql::License> {
+    match var_or("TESS_LICENSE", "community")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "community" => Ok(tess_graphql::License::Community),
+        "commercial" => {
+            let key = var("TESS_LICENSE_KEY")
+                .context("TESS_LICENSE_KEY is required with TESS_LICENSE=commercial")?;
+            if !key.starts_with("tess_") || key.len() <= "tess_".len() {
+                bail!("TESS_LICENSE_KEY is not a Tess license key (it starts with `tess_`)");
+            }
+            Ok(tess_graphql::License::Commercial)
+        }
+        other => bail!("unsupported TESS_LICENSE `{other}` (community, commercial)"),
+    }
 }
 
 /// Embedded n8n: `TESS_N8N_URL` is where Tess reaches it (e.g.
@@ -330,17 +448,29 @@ pub struct N8nConfig {
     pub path: String,
 }
 
-pub fn n8n_config() -> Result<Option<N8nConfig>> {
-    let Some(upstream) = var("TESS_N8N_URL") else { return Ok(None) };
+pub fn n8n_config(license: tess_graphql::License) -> Result<Option<N8nConfig>> {
+    let Some(upstream) = var("TESS_N8N_URL") else {
+        return Ok(None);
+    };
+    if license == tess_graphql::License::Commercial {
+        tracing::warn!(
+            "TESS_N8N_URL is ignored: the commercial license doesn't include the n8n workflow editor"
+        );
+        return Ok(None);
+    }
     if running_on_lambda() {
-        bail!("TESS_N8N_URL: the n8n proxy is not available on AWS Lambda; link to n8n directly instead");
+        bail!(
+            "TESS_N8N_URL: the n8n proxy is not available on AWS Lambda; link to n8n directly instead"
+        );
     }
     let upstream = upstream.trim_end_matches('/').to_string();
     if !(upstream.starts_with("http://") || upstream.starts_with("https://")) {
         bail!("TESS_N8N_URL must be an http(s) URL");
     }
     let path = format!("/{}", var_or("TESS_N8N_PATH", "/n8n/").trim_matches('/'));
-    let reserved = ["/graphql", "/admin", "/api", "/media", "/i18n", "/mcp", "/health"];
+    let reserved = [
+        "/graphql", "/admin", "/api", "/media", "/i18n", "/mcp", "/health",
+    ];
     if path == "/" || reserved.iter().any(|r| path == *r) {
         bail!("TESS_N8N_PATH `{path}` collides with a Tess route");
     }

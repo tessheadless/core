@@ -36,12 +36,18 @@ impl BlobStore for FsBlobStore {
     async fn put(&self, key: &str, data: Bytes, _content_type: &str) -> Result<()> {
         let path = self.path(key)?;
         if let Some(dir) = path.parent() {
-            tokio::fs::create_dir_all(dir).await.map_err(CmsError::storage)?;
+            tokio::fs::create_dir_all(dir)
+                .await
+                .map_err(CmsError::storage)?;
         }
         // Write to a temp file then rename, so readers never see partial files.
         let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
-        tokio::fs::write(&tmp, &data).await.map_err(CmsError::storage)?;
-        tokio::fs::rename(&tmp, &path).await.map_err(CmsError::storage)
+        tokio::fs::write(&tmp, &data)
+            .await
+            .map_err(CmsError::storage)?;
+        tokio::fs::rename(&tmp, &path)
+            .await
+            .map_err(CmsError::storage)
     }
 
     async fn get(&self, key: &str) -> Result<Option<Bytes>> {
@@ -54,7 +60,10 @@ impl BlobStore for FsBlobStore {
 
     async fn head(&self, key: &str) -> Result<Option<ObjectInfo>> {
         match tokio::fs::metadata(self.path(key)?).await {
-            Ok(m) if m.is_file() => Ok(Some(ObjectInfo { size: m.len(), content_type: None })),
+            Ok(m) if m.is_file() => Ok(Some(ObjectInfo {
+                size: m.len(),
+                content_type: None,
+            })),
             Ok(_) => Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(CmsError::storage(e)),

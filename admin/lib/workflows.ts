@@ -10,6 +10,11 @@ export interface WorkflowEditor {
   url: string;
 }
 
+/** The license this server runs under; the commercial one has no workflow editor. */
+export type License = "COMMUNITY" | "COMMERCIAL";
+
 export function fetchWorkflowEditor() {
-  return gql<{ workflowEditor: WorkflowEditor | null }>(`query WorkflowEditor { workflowEditor { provider url } }`);
+  return gql<{ workflowEditor: WorkflowEditor | null; license: License }>(
+    `query WorkflowEditor { workflowEditor { provider url } license }`,
+  );
 }

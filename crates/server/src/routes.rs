@@ -12,11 +12,11 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
+use serde_json::{Value, json};
 use tess_core::query::{EntryQuery, Filter, Op};
 use tess_core::{Actor, CmsError, Stage};
 use tess_graphql::Principal;
 use tess_media::ASSET_TYPE;
-use serde_json::{Value, json};
 
 use crate::AppState;
 
@@ -33,7 +33,11 @@ fn cms_error(e: CmsError) -> Response {
         CmsError::Plugin(m) => error(StatusCode::UNPROCESSABLE_ENTITY, "PLUGIN_ERROR", m),
         CmsError::Storage(m) => {
             tracing::error!(error = %m, "storage failure");
-            error(StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR", "internal storage error")
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "INTERNAL_SERVER_ERROR",
+                "internal storage error",
+            )
         }
     }
 }
@@ -42,8 +46,16 @@ fn cms_error(e: CmsError) -> Response {
 async fn require_actor(state: &AppState, headers: &HeaderMap) -> Result<Actor, Box<Response>> {
     match state.principal(headers).await {
         Ok(Principal::User(actor)) => Ok(actor),
-        Ok(_) => Err(Box::new(error(StatusCode::UNAUTHORIZED, "UNAUTHENTICATED", "sign in required"))),
-        Err(status) => Err(Box::new(error(status, "UNAUTHENTICATED", "invalid credentials"))),
+        Ok(_) => Err(Box::new(error(
+            StatusCode::UNAUTHORIZED,
+            "UNAUTHENTICATED",
+            "sign in required",
+        ))),
+        Err(status) => Err(Box::new(error(
+            status,
+            "UNAUTHENTICATED",
+            "invalid credentials",
+        ))),
     }
 }
 
@@ -74,9 +86,17 @@ pub async fn upload_media(
         .filter(|v| !v.is_empty())
         .unwrap_or("application/octet-stream")
         .to_string();
-    match media.upload(state.service.cms(), &actor, &params.file_name, &mime, body).await {
+    match media
+        .upload(state.service.cms(), &actor, &params.file_name, &mime, body)
+        .await
+    {
         Ok(entry) => {
-            let key = entry.draft.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
+            let key = entry
+                .draft
+                .get("key")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             let url = media.url(&key).await.unwrap_or_default();
             let codec = state.service.codec();
             let mut out = entry.draft.clone();
@@ -93,7 +113,11 @@ pub async fn upload_media(
 fn safe_mime(m: &str) -> &str {
     let ok = m.len() < 128
         && m.split_once('/').is_some_and(|(a, b)| {
-            [a, b].iter().all(|p| !p.is_empty() && p.bytes().all(|c| c.is_ascii_alphanumeric() || b"+-.".contains(&c)))
+            [a, b].iter().all(|p| {
+                !p.is_empty()
+                    && p.bytes()
+                        .all(|c| c.is_ascii_alphanumeric() || b"+-.".contains(&c))
+            })
         });
     if ok { m } else { "application/octet-stream" }
 }
@@ -119,14 +143,34 @@ pub async fn serve_media(State(state): State<Arc<AppState>>, Path(key): Path<Str
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(e) => return cms_error(e),
     };
-    let mime = safe_mime(asset.draft.get("mimeType").and_then(Value::as_str).unwrap_or_default()).to_string();
+    let mime = safe_mime(
+        asset
+            .draft
+            .get("mimeType")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+    )
+    .to_string();
     let mut res = data.into_response();
     let h = res.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_str(&mime).unwrap_or(HeaderValue::from_static("application/octet-stream")));
-    h.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(&mime)
+            .unwrap_or(HeaderValue::from_static("application/octet-stream")),
+    );
+    h.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
     // User uploads (SVG, HTML) must never run scripts in our origin.
-    h.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'none'; sandbox"));
-    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"));
+    h.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    h.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=31536000, immutable"),
+    );
     res
 }
 

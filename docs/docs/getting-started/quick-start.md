@@ -20,8 +20,9 @@ openssl rand -hex 32
 docker compose up --build
 ```
 
-For the leanest setup (Tess alone, nothing else to run), use
-`docker compose -f docker-compose-local.yml up --build` instead.
+To run every optional service too (S3 storage, search, cache and n8n
+workflows, all on your machine), use the `local` profile:
+`scripts/init-env.sh --local` then `docker compose --profile local up --build`.
 
 By default Tess stores content in an embedded RocksDB database and keeps
 uploaded files on disk, both in the `tess-data` volume. To use PostgreSQL,

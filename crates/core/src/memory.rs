@@ -7,8 +7,8 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use tokio::sync::RwLock;
 use serde_json::Value;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -58,7 +58,12 @@ impl Storage for MemoryStorage {
     }
 
     async fn get_entry(&self, content_type: &str, id: Uuid) -> Result<Option<Entry>> {
-        Ok(self.entries.read().await.get(&(content_type.to_string(), id)).cloned())
+        Ok(self
+            .entries
+            .read()
+            .await
+            .get(&(content_type.to_string(), id))
+            .cloned())
     }
 
     async fn put_entry(&self, entry: &Entry) -> Result<()> {
@@ -70,13 +75,20 @@ impl Storage for MemoryStorage {
     }
 
     async fn delete_entry(&self, content_type: &str, id: Uuid) -> Result<bool> {
-        Ok(self.entries.write().await.remove(&(content_type.to_string(), id)).is_some())
+        Ok(self
+            .entries
+            .write()
+            .await
+            .remove(&(content_type.to_string(), id))
+            .is_some())
     }
 
     async fn query_entries(&self, content_type: &str, query: &EntryQuery) -> Result<Page> {
         let entries = self.entries.read().await;
         let of_type = entries
-            .range((content_type.to_string(), Uuid::nil())..=(content_type.to_string(), Uuid::max()))
+            .range(
+                (content_type.to_string(), Uuid::nil())..=(content_type.to_string(), Uuid::max()),
+            )
             .map(|(_, e)| e.clone());
         Ok(execute_in_memory(of_type, query))
     }
@@ -86,7 +98,10 @@ impl Storage for MemoryStorage {
     }
 
     async fn put_setting(&self, key: &str, value: &Value) -> Result<()> {
-        self.settings.write().await.insert(key.to_string(), value.clone());
+        self.settings
+            .write()
+            .await
+            .insert(key.to_string(), value.clone());
         Ok(())
     }
 

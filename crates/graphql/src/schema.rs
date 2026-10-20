@@ -12,17 +12,17 @@ use async_graphql::dynamic::{
     Schema, SchemaError, TypeRef, Union,
 };
 use async_graphql::{Error as GqlError, ErrorExtensions, Name, Value as GqlValue};
+use serde_json::{Map, Value};
 use tess_core::query::EntryQuery;
 use tess_core::validate::Components;
 use tess_core::{Actor, Cms, CmsError, ContentType, ContentTypeDef, Entry, FieldType, Stage};
-use serde_json::{Map, Value};
 use uuid::Uuid;
 
+use crate::fields::{decode_input, enum_type_name, input_type, output_field, scalar_type_name};
 use crate::filter::{
     FilterKind, decode_where_ids, filterable_fields, parse_order_by, parse_where, sortable_fields,
 };
 use crate::ids::{IdCodec, IdError};
-use crate::fields::{decode_input, enum_type_name, input_type, output_field, scalar_type_name};
 use crate::naming::Names;
 use crate::{Principal, SchemaConfig};
 
@@ -75,11 +75,17 @@ fn forbidden() -> GqlError {
 }
 
 pub(crate) fn principal(ctx: &ResolverContext<'_>) -> Principal {
-    ctx.data_opt::<Principal>().cloned().unwrap_or(Principal::Anonymous)
+    ctx.data_opt::<Principal>()
+        .cloned()
+        .unwrap_or(Principal::Anonymous)
 }
 
 pub(crate) fn require_read(ctx: &ResolverContext<'_>, stage: Stage) -> GqlResult<()> {
-    if principal(ctx).can_read(stage) { Ok(()) } else { Err(forbidden()) }
+    if principal(ctx).can_read(stage) {
+        Ok(())
+    } else {
+        Err(forbidden())
+    }
 }
 
 /// The authenticated actor; fine-grained permissions are checked by `Cms`.
@@ -91,13 +97,19 @@ pub(crate) fn require_write(ctx: &ResolverContext<'_>) -> GqlResult<Actor> {
 }
 
 /// An optional argument; an explicit `null` counts as absent.
-pub(crate) fn opt_arg<'a>(ctx: &'a ResolverContext<'_>, name: &str) -> Option<async_graphql::dynamic::ValueAccessor<'a>> {
+pub(crate) fn opt_arg<'a>(
+    ctx: &'a ResolverContext<'_>,
+    name: &str,
+) -> Option<async_graphql::dynamic::ValueAccessor<'a>> {
     ctx.args.get(name).filter(|v| !v.is_null())
 }
 
 /// An optional integer argument with a default (also used for explicit `null`).
 pub(crate) fn int_arg(ctx: &ResolverContext<'_>, name: &str, default: i64) -> GqlResult<i64> {
-    opt_arg(ctx, name).map(|v| v.i64()).transpose().map(|v| v.unwrap_or(default))
+    opt_arg(ctx, name)
+        .map(|v| v.i64())
+        .transpose()
+        .map(|v| v.unwrap_or(default))
 }
 
 pub(crate) fn stage_arg(ctx: &ResolverContext<'_>) -> GqlResult<Stage> {
@@ -126,14 +138,21 @@ pub(crate) fn codec<'a>(ctx: &ResolverContext<'a>) -> GqlResult<&'a IdCodec> {
 }
 
 pub(crate) fn id_err(err: IdError) -> GqlError {
-    let code = if err == IdError::Expired { "ID_EXPIRED" } else { "BAD_USER_INPUT" };
+    let code = if err == IdError::Expired {
+        "ID_EXPIRED"
+    } else {
+        "BAD_USER_INPUT"
+    };
     GqlError::new(err.to_string()).extend_with(|_, e| e.set("code", code))
 }
 
 /// Decodes the opaque `id` argument, which must refer to a `type_name`.
 pub(crate) fn id_arg(ctx: &ResolverContext<'_>, type_name: &str) -> GqlResult<Uuid> {
     let token = ctx.args.try_get("id")?.string()?;
-    codec(ctx)?.decode(token, Some(type_name)).map(|(_, id)| id).map_err(id_err)
+    codec(ctx)?
+        .decode(token, Some(type_name))
+        .map(|(_, id)| id)
+        .map_err(id_err)
 }
 
 fn stage_value(stage: Stage) -> GqlValue {
@@ -163,7 +182,11 @@ pub(crate) fn build(
     dirty: SchemaDirty,
     services: &crate::Services,
 ) -> Result<Schema, SchemaError> {
-    let Model { content_types, components, searchable } = model;
+    let Model {
+        content_types,
+        components,
+        searchable,
+    } = model;
     let mut query = Object::new("Query");
     let mut mutation = Object::new("Mutation");
     let mut builder = Schema::build("Query", Some("Mutation"), None);
@@ -173,9 +196,14 @@ pub(crate) fn build(
         .register(crate::workflow::status_enum())
         .register(crate::workflow::history_action_enum())
         .register(crate::workflow::history_event_type())
-        .register(Scalar::new("DateTime").description("RFC 3339 date-time, e.g. 2026-01-31T12:00:00.000Z"))
+        .register(
+            Scalar::new("DateTime")
+                .description("RFC 3339 date-time, e.g. 2026-01-31T12:00:00.000Z"),
+        )
         .register(Scalar::new("Date").description("Calendar date without time, e.g. 2026-01-31"))
-        .register(Scalar::new("UUID").description("UUID, e.g. 6f9619ff-8b86-d011-b42d-00cf4fc964ff"))
+        .register(
+            Scalar::new("UUID").description("UUID, e.g. 6f9619ff-8b86-d011-b42d-00cf4fc964ff"),
+        )
         .register(Scalar::new("JSON").description("Arbitrary JSON value"));
     for ty in crate::components::component_types(components) {
         builder = ty.register(builder);
@@ -186,10 +214,15 @@ pub(crate) fn build(
         let ct = Arc::new(ct.clone());
         let names = Names::of(&ct);
         let extra = crate::media::extra_object_fields(&ct, services);
-        for ty in content_type_types(&ct, &names, extra).into_iter().chain(crate::components::zone_types(&ct)) {
+        for ty in content_type_types(&ct, &names, extra)
+            .into_iter()
+            .chain(crate::components::zone_types(&ct))
+        {
             builder = ty.register(builder);
         }
-        query = query.field(single_query(&ct, &names)).field(list_query(&ct, &names, config));
+        query = query
+            .field(single_query(&ct, &names))
+            .field(list_query(&ct, &names, config));
         if services.search.is_some() && searchable.contains(&ct.api_id) {
             query = query.field(crate::search::search_query(&ct, &names, config));
         }
@@ -280,21 +313,45 @@ pub(crate) fn build(
         "The embedded workflow editor.",
         vec![
             crate::jsonobj::plain("provider", TypeRef::named_nn(TypeRef::STRING)),
-            crate::jsonobj::plain("url", TypeRef::named_nn(TypeRef::STRING)).doc("Same-origin URL of the editor."),
+            crate::jsonobj::plain("url", TypeRef::named_nn(TypeRef::STRING))
+                .doc("Same-origin URL of the editor."),
         ],
     ));
-    let workflows = services.workflows.clone();
+    // Never with the commercial license, even if an editor is configured.
+    let workflows = services
+        .workflows
+        .clone()
+        .filter(|_| services.license != crate::License::Commercial);
     query = query.field(
-        Field::new("workflowEditor", TypeRef::named("WorkflowEditor"), move |ctx| {
-            let workflows = workflows.clone();
+        Field::new(
+            "workflowEditor",
+            TypeRef::named("WorkflowEditor"),
+            move |ctx| {
+                let workflows = workflows.clone();
+                FieldFuture::new(async move {
+                    require_write(&ctx)?;
+                    Ok(workflows.map(|w| {
+                        crate::jsonobj::value(
+                            serde_json::json!({ "provider": w.provider, "url": w.editor_url }),
+                        )
+                    }))
+                })
+            },
+        )
+        .description("Null when no workflow editor is configured."),
+    );
+    builder = builder.register(Enum::new("License").item("COMMUNITY").item("COMMERCIAL"));
+    let license = services.license;
+    query = query.field(
+        Field::new("license", TypeRef::named_nn("License"), move |ctx| {
             FieldFuture::new(async move {
                 require_write(&ctx)?;
-                Ok(workflows.map(|w| {
-                    crate::jsonobj::value(serde_json::json!({ "provider": w.provider, "url": w.editor_url }))
-                }))
+                Ok(Some(FieldValue::value(GqlValue::Enum(Name::new(
+                    license.as_str(),
+                )))))
             })
         })
-        .description("Null when no workflow editor is configured."),
+        .description("The license this server runs under. Signed-in users only."),
     );
 
     let mut builder = builder
@@ -320,7 +377,10 @@ pub(crate) enum TypeDef {
 }
 
 impl TypeDef {
-    pub(crate) fn register(self, b: async_graphql::dynamic::SchemaBuilder) -> async_graphql::dynamic::SchemaBuilder {
+    pub(crate) fn register(
+        self,
+        b: async_graphql::dynamic::SchemaBuilder,
+    ) -> async_graphql::dynamic::SchemaBuilder {
         match self {
             TypeDef::Object(o) => b.register(o),
             TypeDef::Input(i) => b.register(i),
@@ -337,7 +397,8 @@ fn content_type_types(ct: &Arc<ContentType>, n: &Names, extra_fields: Vec<Field>
     for f in &ct.fields {
         if let FieldType::Enum { values } = &f.field_type {
             types.push(TypeDef::Enum(
-                Enum::new(enum_type_name(&ct.api_id, &f.name)).items(values.iter().map(String::as_str)),
+                Enum::new(enum_type_name(&ct.api_id, &f.name))
+                    .items(values.iter().map(String::as_str)),
             ));
         }
     }
@@ -393,25 +454,44 @@ fn content_type_types(ct: &Arc<ContentType>, n: &Names, extra_fields: Vec<Field>
     // Connection.
     types.push(TypeDef::Object(
         Object::new(&n.connection)
-            .field(Field::new("items", TypeRef::named_nn_list_nn(&n.object), |ctx| {
-                FieldFuture::new(async move {
-                    let conn = ctx.parent_value.try_downcast_ref::<Connection>()?;
-                    Ok(Some(FieldValue::list(conn.items.iter().map(|n| FieldValue::borrowed_any(n)))))
-                })
-            }))
-            .field(Field::new("total", TypeRef::named_nn(TypeRef::INT), |ctx| {
-                FieldFuture::new(async move {
-                    let conn = ctx.parent_value.try_downcast_ref::<Connection>()?;
-                    Ok(Some(FieldValue::value(conn.total as i64)))
-                })
-            })),
+            .field(Field::new(
+                "items",
+                TypeRef::named_nn_list_nn(&n.object),
+                |ctx| {
+                    FieldFuture::new(async move {
+                        let conn = ctx.parent_value.try_downcast_ref::<Connection>()?;
+                        Ok(Some(FieldValue::list(
+                            conn.items.iter().map(|n| FieldValue::borrowed_any(n)),
+                        )))
+                    })
+                },
+            ))
+            .field(Field::new(
+                "total",
+                TypeRef::named_nn(TypeRef::INT),
+                |ctx| {
+                    FieldFuture::new(async move {
+                        let conn = ctx.parent_value.try_downcast_ref::<Connection>()?;
+                        Ok(Some(FieldValue::value(conn.total as i64)))
+                    })
+                },
+            )),
     ));
 
     // Where input.
     let mut where_input = InputObject::new(&n.where_input)
-        .field(InputValue::new("AND", TypeRef::named_nn_list(&n.where_input)))
-        .field(InputValue::new("OR", TypeRef::named_nn_list(&n.where_input)))
-        .field(InputValue::new("NOT", TypeRef::named_nn_list(&n.where_input)));
+        .field(InputValue::new(
+            "AND",
+            TypeRef::named_nn_list(&n.where_input),
+        ))
+        .field(InputValue::new(
+            "OR",
+            TypeRef::named_nn_list(&n.where_input),
+        ))
+        .field(InputValue::new(
+            "NOT",
+            TypeRef::named_nn_list(&n.where_input),
+        ));
     for (name, kind) in filterable_fields(ct) {
         let scalar = match ct.field(&name) {
             Some(f) => scalar_type_name(&ct.api_id, f),
@@ -442,7 +522,10 @@ fn content_type_types(ct: &Arc<ContentType>, n: &Names, extra_fields: Vec<Field>
     let mut create = InputObject::new(&n.create_input);
     let mut update = InputObject::new(&n.update_input);
     for f in &ct.fields {
-        create = create.field(InputValue::new(&f.name, input_type(&ct.api_id, f, f.required)));
+        create = create.field(InputValue::new(
+            &f.name,
+            input_type(&ct.api_id, f, f.required),
+        ));
         update = update.field(InputValue::new(&f.name, input_type(&ct.api_id, f, false)));
     }
     types.push(TypeDef::Input(create));
@@ -455,7 +538,11 @@ fn view_field(name: &'static str, ty: TypeRef) -> Field {
     Field::new(name, ty, move |ctx| {
         FieldFuture::new(async move {
             let node = ctx.parent_value.try_downcast_ref::<EntryNode>()?;
-            Ok(node.view.get(name).and_then(|v| GqlValue::from_json(v.clone()).ok()).map(FieldValue::value))
+            Ok(node
+                .view
+                .get(name)
+                .and_then(|v| GqlValue::from_json(v.clone()).ok())
+                .map(FieldValue::value))
         })
     })
 }
@@ -468,7 +555,11 @@ fn single_query(ct: &Arc<ContentType>, n: &Names) -> Field {
             let stage = stage_arg(&ctx)?;
             require_read(&ctx, stage)?;
             let id = id_arg(&ctx, &api_id)?;
-            let entry = ctx.data::<Cms>()?.get_entry(&api_id, id, stage).await.map_err(cms_err)?;
+            let entry = ctx
+                .data::<Cms>()?
+                .get_entry(&api_id, id, stage)
+                .await
+                .map_err(cms_err)?;
             Ok(entry.and_then(|e| EntryNode::value(e, stage)))
         })
     })
@@ -481,48 +572,70 @@ fn list_query(ct: &Arc<ContentType>, n: &Names, config: &SchemaConfig) -> Field 
     let ct_ref = ct.clone();
     let max = config.max_page_size;
     let default_first = config.default_page_size as i64;
-    Field::new(&n.list_query, TypeRef::named_nn(&n.connection), move |ctx| {
-        let ct = ct_ref.clone();
-        FieldFuture::new(async move {
-            let stage = stage_arg(&ctx)?;
-            require_read(&ctx, stage)?;
-            let first = int_arg(&ctx, "first", default_first)?;
-            let skip = int_arg(&ctx, "skip", 0)?;
-            if first < 0 || skip < 0 {
-                return Err(cms_err(CmsError::validation("`first` and `skip` must be positive")));
-            }
-            let codec = codec(&ctx)?;
-            let mut where_input = json_arg(&ctx, "where")?;
-            decode_where_ids(&ct, &mut where_input, &|token, ty| {
-                codec
-                    .decode(token, Some(ty))
-                    .map(|(_, id)| id.to_string())
-                    .map_err(|e| CmsError::validation(e.to_string()))
-            })
-            .map_err(cms_err)?;
-            let query = EntryQuery {
-                stage,
-                filter: parse_where(&ct, &where_input).map_err(cms_err)?,
-                sort: parse_order_by(&json_arg(&ctx, "orderBy")?).map_err(cms_err)?,
-                limit: (first as usize).min(max),
-                offset: skip as usize,
-            };
-            let page = ctx.data::<Cms>()?.query_entries(&ct.api_id, &query).await.map_err(cms_err)?;
-            let items = page
-                .items
-                .into_iter()
-                .filter_map(|entry| {
-                    let view = entry.view(stage)?;
-                    Some(EntryNode { entry, stage, view })
+    Field::new(
+        &n.list_query,
+        TypeRef::named_nn(&n.connection),
+        move |ctx| {
+            let ct = ct_ref.clone();
+            FieldFuture::new(async move {
+                let stage = stage_arg(&ctx)?;
+                require_read(&ctx, stage)?;
+                let first = int_arg(&ctx, "first", default_first)?;
+                let skip = int_arg(&ctx, "skip", 0)?;
+                if first < 0 || skip < 0 {
+                    return Err(cms_err(CmsError::validation(
+                        "`first` and `skip` must be positive",
+                    )));
+                }
+                let codec = codec(&ctx)?;
+                let mut where_input = json_arg(&ctx, "where")?;
+                decode_where_ids(&ct, &mut where_input, &|token, ty| {
+                    codec
+                        .decode(token, Some(ty))
+                        .map(|(_, id)| id.to_string())
+                        .map_err(|e| CmsError::validation(e.to_string()))
                 })
-                .collect();
-            Ok(Some(FieldValue::owned_any(Connection { items, total: page.total })))
-        })
-    })
-    .description(format!("List {} entries, at most {max} per page.", ct.api_id))
+                .map_err(cms_err)?;
+                let query = EntryQuery {
+                    stage,
+                    filter: parse_where(&ct, &where_input).map_err(cms_err)?,
+                    sort: parse_order_by(&json_arg(&ctx, "orderBy")?).map_err(cms_err)?,
+                    limit: (first as usize).min(max),
+                    offset: skip as usize,
+                };
+                let page = ctx
+                    .data::<Cms>()?
+                    .query_entries(&ct.api_id, &query)
+                    .await
+                    .map_err(cms_err)?;
+                let items = page
+                    .items
+                    .into_iter()
+                    .filter_map(|entry| {
+                        let view = entry.view(stage)?;
+                        Some(EntryNode { entry, stage, view })
+                    })
+                    .collect();
+                Ok(Some(FieldValue::owned_any(Connection {
+                    items,
+                    total: page.total,
+                })))
+            })
+        },
+    )
+    .description(format!(
+        "List {} entries, at most {max} per page.",
+        ct.api_id
+    ))
     .argument(InputValue::new("where", TypeRef::named(&n.where_input)))
-    .argument(InputValue::new("orderBy", TypeRef::named_nn_list(&n.order_by)))
-    .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)).default_value(config.default_page_size as i64))
+    .argument(InputValue::new(
+        "orderBy",
+        TypeRef::named_nn_list(&n.order_by),
+    ))
+    .argument(
+        InputValue::new("first", TypeRef::named(TypeRef::INT))
+            .default_value(config.default_page_size as i64),
+    )
     .argument(InputValue::new("skip", TypeRef::named(TypeRef::INT)).default_value(0))
     .argument(stage_input())
 }
@@ -538,8 +651,17 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let mut data = object_arg(&ctx, "data")?;
-            decode_input(&ct.fields, &mut data, codec(&ctx)?, ctx.data::<Arc<Components>>()?)?;
-            let entry = ctx.data::<Cms>()?.create_entry(&ct.api_id, data, &actor).await.map_err(cms_err)?;
+            decode_input(
+                &ct.fields,
+                &mut data,
+                codec(&ctx)?,
+                ctx.data::<Arc<Components>>()?,
+            )?;
+            let entry = ctx
+                .data::<Cms>()?
+                .create_entry(&ct.api_id, data, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(EntryNode::value(entry, Stage::Draft))
         })
     })
@@ -553,8 +675,17 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
             let actor = require_write(&ctx)?;
             let id = id_arg(&ctx, &ct.api_id)?;
             let mut data = object_arg(&ctx, "data")?;
-            decode_input(&ct.fields, &mut data, codec(&ctx)?, ctx.data::<Arc<Components>>()?)?;
-            let entry = ctx.data::<Cms>()?.update_entry(&ct.api_id, id, data, &actor).await.map_err(cms_err)?;
+            decode_input(
+                &ct.fields,
+                &mut data,
+                codec(&ctx)?,
+                ctx.data::<Arc<Components>>()?,
+            )?;
+            let entry = ctx
+                .data::<Cms>()?
+                .update_entry(&ct.api_id, id, data, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(EntryNode::value(entry, Stage::Draft))
         })
     })
@@ -568,7 +699,10 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let id = id_arg(&ctx, &a)?;
-            ctx.data::<Cms>()?.delete_entry(&a, id, &actor).await.map_err(cms_err)?;
+            ctx.data::<Cms>()?
+                .delete_entry(&a, id, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::value(codec(&ctx)?.encode(&a, id))))
         })
     })
@@ -580,7 +714,11 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let id = id_arg(&ctx, &a)?;
-            let entry = ctx.data::<Cms>()?.publish_entry(&a, id, &actor).await.map_err(cms_err)?;
+            let entry = ctx
+                .data::<Cms>()?
+                .publish_entry(&a, id, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(EntryNode::value(entry, Stage::Published))
         })
     })
@@ -593,7 +731,11 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let id = id_arg(&ctx, &a)?;
-            let entry = ctx.data::<Cms>()?.unpublish_entry(&a, id, &actor).await.map_err(cms_err)?;
+            let entry = ctx
+                .data::<Cms>()?
+                .unpublish_entry(&a, id, &actor)
+                .await
+                .map_err(cms_err)?;
             Ok(EntryNode::value(entry, Stage::Draft))
         })
     })
@@ -604,27 +746,39 @@ fn entry_mutations(ct: &Arc<ContentType>, n: &Names) -> Vec<Field> {
 
 /// `verifyPassword`: checks a candidate against a PASSWORD field.
 fn verify_password_query() -> Field {
-    Field::new("verifyPassword", TypeRef::named_nn(TypeRef::BOOLEAN), |ctx| {
-        FieldFuture::new(async move {
-            let stage = stage_arg(&ctx)?;
-            require_read(&ctx, stage)?;
-            let content_type = ctx.args.try_get("contentType")?.string()?.to_string();
-            let id = id_arg(&ctx, &content_type)?;
-            let field = ctx.args.try_get("field")?.string()?;
-            let password = ctx.args.try_get("password")?.string()?;
-            let ok = ctx
-                .data::<Cms>()?
-                .verify_password(&content_type, id, field, stage, password)
-                .await
-                .map_err(cms_err)?;
-            Ok(Some(FieldValue::value(ok)))
-        })
-    })
-    .description("Check a password against a PASSWORD field of an entry (passwords are never returned).")
-    .argument(InputValue::new("contentType", TypeRef::named_nn(TypeRef::STRING)))
+    Field::new(
+        "verifyPassword",
+        TypeRef::named_nn(TypeRef::BOOLEAN),
+        |ctx| {
+            FieldFuture::new(async move {
+                let stage = stage_arg(&ctx)?;
+                require_read(&ctx, stage)?;
+                let content_type = ctx.args.try_get("contentType")?.string()?.to_string();
+                let id = id_arg(&ctx, &content_type)?;
+                let field = ctx.args.try_get("field")?.string()?;
+                let password = ctx.args.try_get("password")?.string()?;
+                let ok = ctx
+                    .data::<Cms>()?
+                    .verify_password(&content_type, id, field, stage, password)
+                    .await
+                    .map_err(cms_err)?;
+                Ok(Some(FieldValue::value(ok)))
+            })
+        },
+    )
+    .description(
+        "Check a password against a PASSWORD field of an entry (passwords are never returned).",
+    )
+    .argument(InputValue::new(
+        "contentType",
+        TypeRef::named_nn(TypeRef::STRING),
+    ))
     .argument(InputValue::new("id", TypeRef::named_nn(TypeRef::ID)))
     .argument(InputValue::new("field", TypeRef::named_nn(TypeRef::STRING)))
-    .argument(InputValue::new("password", TypeRef::named_nn(TypeRef::STRING)))
+    .argument(InputValue::new(
+        "password",
+        TypeRef::named_nn(TypeRef::STRING),
+    ))
     .argument(stage_input())
 }
 

@@ -52,7 +52,9 @@ pub(crate) fn component_input_name(component: &str) -> String {
 /// GraphQL type of a field's scalar value (filters, inputs). Relations use `ID`.
 pub(crate) fn scalar_type_name(owner: &str, f: &FieldDef) -> String {
     match &f.field_type {
-        FieldType::Text { .. } | FieldType::Markdown | FieldType::Password { .. } => TypeRef::STRING.into(),
+        FieldType::Text { .. } | FieldType::Markdown | FieldType::Password { .. } => {
+            TypeRef::STRING.into()
+        }
         FieldType::Int => TypeRef::INT.into(),
         FieldType::Float => TypeRef::FLOAT.into(),
         FieldType::Boolean => TypeRef::BOOLEAN.into(),
@@ -69,12 +71,30 @@ pub(crate) fn scalar_type_name(owner: &str, f: &FieldDef) -> String {
 
 /// Input type of a field in create (`required` honored) and update inputs.
 pub(crate) fn input_type(owner: &str, f: &FieldDef, required: bool) -> TypeRef {
-    let list = |name: String| if required { TypeRef::named_nn_list_nn(name) } else { TypeRef::named_nn_list(name) };
-    let one = |name: String| if required { TypeRef::named_nn(name) } else { TypeRef::named(name) };
+    let list = |name: String| {
+        if required {
+            TypeRef::named_nn_list_nn(name)
+        } else {
+            TypeRef::named_nn_list(name)
+        }
+    };
+    let one = |name: String| {
+        if required {
+            TypeRef::named_nn(name)
+        } else {
+            TypeRef::named(name)
+        }
+    };
     match &f.field_type {
         FieldType::Relation { many: true, .. } => list(TypeRef::ID.into()),
-        FieldType::Component { component, repeatable: true } => list(component_input_name(component)),
-        FieldType::Component { component, repeatable: false } => one(component_input_name(component)),
+        FieldType::Component {
+            component,
+            repeatable: true,
+        } => list(component_input_name(component)),
+        FieldType::Component {
+            component,
+            repeatable: false,
+        } => one(component_input_name(component)),
         FieldType::DynamicZone { .. } => list(zone_input_name(owner, &f.name)),
         _ => one(scalar_type_name(owner, f)),
     }
@@ -85,13 +105,22 @@ pub(crate) fn input_type(owner: &str, f: &FieldDef, required: bool) -> TypeRef {
 fn output_scalar(field_type: &FieldType, v: &Value) -> Option<GqlValue> {
     match (field_type, v) {
         (
-            FieldType::Text { .. } | FieldType::Markdown | FieldType::DateTime | FieldType::Date | FieldType::Uuid,
+            FieldType::Text { .. }
+            | FieldType::Markdown
+            | FieldType::DateTime
+            | FieldType::Date
+            | FieldType::Uuid,
             Value::String(s),
         ) => Some(GqlValue::String(s.clone())),
         (FieldType::Int, Value::Number(n)) => n.as_i64().map(|i| GqlValue::Number(i.into())),
-        (FieldType::Float, Value::Number(n)) => n.as_f64().and_then(async_graphql::Number::from_f64).map(GqlValue::Number),
+        (FieldType::Float, Value::Number(n)) => n
+            .as_f64()
+            .and_then(async_graphql::Number::from_f64)
+            .map(GqlValue::Number),
         (FieldType::Boolean, Value::Bool(b)) => Some(GqlValue::Boolean(*b)),
-        (FieldType::Enum { values }, Value::String(s)) if values.contains(s) => Some(GqlValue::Enum(Name::new(s))),
+        (FieldType::Enum { values }, Value::String(s)) if values.contains(s) => {
+            Some(GqlValue::Enum(Name::new(s)))
+        }
         (FieldType::Json, v) => GqlValue::from_json(v.clone()).ok(),
         _ => None,
     }
@@ -104,10 +133,19 @@ pub(crate) fn output_field(owner: &str, f: &FieldDef) -> Option<Field> {
         return None;
     }
     let ty = match &f.field_type {
-        FieldType::Relation { target, many: false } => TypeRef::named(target),
+        FieldType::Relation {
+            target,
+            many: false,
+        } => TypeRef::named(target),
         FieldType::Relation { target, many: true } => TypeRef::named_nn_list_nn(target),
-        FieldType::Component { component, repeatable: false } => TypeRef::named(component),
-        FieldType::Component { component, repeatable: true } => TypeRef::named_nn_list_nn(component),
+        FieldType::Component {
+            component,
+            repeatable: false,
+        } => TypeRef::named(component),
+        FieldType::Component {
+            component,
+            repeatable: true,
+        } => TypeRef::named_nn_list_nn(component),
         FieldType::DynamicZone { .. } => TypeRef::named_nn_list_nn(zone_type_name(owner, &f.name)),
         _ => TypeRef::named(scalar_type_name(owner, f)),
     };
@@ -121,15 +159,27 @@ pub(crate) fn output_field(owner: &str, f: &FieldDef) -> Option<Field> {
                 FieldType::Relation { target, many } => {
                     resolve_relation(ctx.data::<Cms>()?, target, *many, raw, stage).await
                 }
-                FieldType::Component { repeatable: false, .. } => Ok(raw
-                    .and_then(Value::as_object)
-                    .map(|m| FieldValue::owned_any(ComponentNode { data: m.clone(), stage }))),
-                FieldType::Component { repeatable: true, .. } => Ok(Some(FieldValue::list(
+                FieldType::Component {
+                    repeatable: false, ..
+                } => Ok(raw.and_then(Value::as_object).map(|m| {
+                    FieldValue::owned_any(ComponentNode {
+                        data: m.clone(),
+                        stage,
+                    })
+                })),
+                FieldType::Component {
+                    repeatable: true, ..
+                } => Ok(Some(FieldValue::list(
                     raw.and_then(Value::as_array)
                         .into_iter()
                         .flatten()
                         .filter_map(Value::as_object)
-                        .map(|m| FieldValue::owned_any(ComponentNode { data: m.clone(), stage }))
+                        .map(|m| {
+                            FieldValue::owned_any(ComponentNode {
+                                data: m.clone(),
+                                stage,
+                            })
+                        })
                         .collect::<Vec<_>>(),
                 ))),
                 FieldType::DynamicZone { components } => Ok(Some(FieldValue::list(
@@ -141,12 +191,18 @@ pub(crate) fn output_field(owner: &str, f: &FieldDef) -> Option<Field> {
                             // Items of components no longer allowed are skipped.
                             let name = m.get(COMPONENT_KEY)?.as_str()?.to_string();
                             components.contains(&name).then(|| {
-                                FieldValue::owned_any(ComponentNode { data: m.clone(), stage }).with_type(name)
+                                FieldValue::owned_any(ComponentNode {
+                                    data: m.clone(),
+                                    stage,
+                                })
+                                .with_type(name)
                             })
                         })
                         .collect::<Vec<_>>(),
                 ))),
-                ft => Ok(raw.and_then(|v| output_scalar(ft, v)).map(FieldValue::value)),
+                ft => Ok(raw
+                    .and_then(|v| output_scalar(ft, v))
+                    .map(FieldValue::value)),
             }
         })
     });
@@ -167,7 +223,10 @@ pub(crate) async fn resolve_relation(
 ) -> GqlResult<Option<FieldValue<'static>>> {
     let ids: Vec<String> = match raw {
         Some(Value::String(s)) => vec![s.clone()],
-        Some(Value::Array(xs)) => xs.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
+        Some(Value::Array(xs)) => xs
+            .iter()
+            .filter_map(|x| x.as_str().map(String::from))
+            .collect(),
         _ => vec![],
     };
     if !many {
@@ -182,7 +241,11 @@ pub(crate) async fn resolve_relation(
     }
     let mut q = EntryQuery::new(stage);
     q.limit = ids.len();
-    q.filter = Some(Filter::cmp("id", Op::In, Value::Array(ids.iter().cloned().map(Value::String).collect())));
+    q.filter = Some(Filter::cmp(
+        "id",
+        Op::In,
+        Value::Array(ids.iter().cloned().map(Value::String).collect()),
+    ));
     let mut found = cms.query_entries(target, &q).await.map_err(cms_err)?.items;
     let ordered = ids.iter().filter_map(|id| {
         let pos = found.iter().position(|e| &e.id.to_string() == id)?;
@@ -201,7 +264,9 @@ pub(crate) fn decode_input(
     components: &Components,
 ) -> GqlResult<()> {
     for f in fields {
-        let Some(value) = data.get_mut(&f.name) else { continue };
+        let Some(value) = data.get_mut(&f.name) else {
+            continue;
+        };
         match &f.field_type {
             FieldType::Relation { target, .. } => {
                 let decode = |v: &mut Value| -> GqlResult<()> {
@@ -217,7 +282,9 @@ pub(crate) fn decode_input(
                 }
             }
             FieldType::Component { component, .. } => {
-                let Some(def) = components.get(component) else { continue };
+                let Some(def) = components.get(component) else {
+                    continue;
+                };
                 let items: Vec<&mut Value> = match value {
                     Value::Array(items) => items.iter_mut().collect(),
                     v => vec![v],
@@ -231,7 +298,9 @@ pub(crate) fn decode_input(
             FieldType::DynamicZone { .. } => {
                 let Value::Array(items) = value else { continue };
                 for item in items.iter_mut() {
-                    let Value::Object(choice) = item else { continue };
+                    let Value::Object(choice) = item else {
+                        continue;
+                    };
                     if choice.len() != 1 {
                         return Err(cms_err(CmsError::validation(format!(
                             "each `{}` item must set exactly one component",

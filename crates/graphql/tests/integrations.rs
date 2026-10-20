@@ -35,12 +35,22 @@ async fn service() -> GraphqlService {
         secrets.clone(),
         Arc::new(move |ct, id| ids.encode(ct, id)),
         Arc::new(move |ct, id| refs.stable_ref(ct, id)),
-        tess_webhooks::WebhookConfig { inline: true, ..Default::default() },
+        tess_webhooks::WebhookConfig {
+            inline: true,
+            ..Default::default()
+        },
     );
     let services = Services {
-        i18n: Some(Arc::new(tess_i18n::I18nService::new(storage.clone(), secrets, Default::default()))),
+        i18n: Some(Arc::new(tess_i18n::I18nService::new(
+            storage.clone(),
+            secrets,
+            Default::default(),
+        ))),
         webhooks: Some(Arc::new(webhooks)),
-        workflows: Some(WorkflowsInfo { provider: "n8n".into(), editor_url: "/n8n/".into() }),
+        workflows: Some(WorkflowsInfo {
+            provider: "n8n".into(),
+            editor_url: "/n8n/".into(),
+        }),
         ..Default::default()
     };
     let svc = GraphqlService::with_services(storage, codec(), SchemaConfig::default(), services);
@@ -49,7 +59,8 @@ async fn service() -> GraphqlService {
 }
 
 async fn run(svc: &GraphqlService, who: &Principal, query: &str, vars: Value) -> Value {
-    let req = async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
+    let req =
+        async_graphql::Request::new(query).variables(async_graphql::Variables::from_json(vars));
     serde_json::to_value(svc.execute(req, who.clone()).await).unwrap()
 }
 
@@ -60,11 +71,18 @@ async fn ok(svc: &GraphqlService, who: &Principal, query: &str, vars: Value) -> 
 }
 
 fn code(res: &Value) -> &str {
-    res["errors"][0]["extensions"]["code"].as_str().unwrap_or_default()
+    res["errors"][0]["extensions"]["code"]
+        .as_str()
+        .unwrap_or_default()
 }
 
 fn user(role: Role) -> Principal {
-    Principal::User(Actor { id: None, name: format!("{role:?}"), role, scope: vec![] })
+    Principal::User(Actor {
+        id: None,
+        name: format!("{role:?}"),
+        role,
+        scope: vec![],
+    })
 }
 
 #[tokio::test]
@@ -74,8 +92,25 @@ async fn translations_api() {
     let contributor = user(Role::Contributor);
     let reviewer = user(Role::Reviewer);
 
-    assert_eq!(code(&run(&svc, &Principal::Public, "{ translationLanguages { tag } }", json!({})).await), "FORBIDDEN");
-    let res = run(&svc, &contributor, r#"mutation { addTranslationLanguage(tag: "en") { tag } }"#, json!({})).await;
+    assert_eq!(
+        code(
+            &run(
+                &svc,
+                &Principal::Public,
+                "{ translationLanguages { tag } }",
+                json!({})
+            )
+            .await
+        ),
+        "FORBIDDEN"
+    );
+    let res = run(
+        &svc,
+        &contributor,
+        r#"mutation { addTranslationLanguage(tag: "en") { tag } }"#,
+        json!({}),
+    )
+    .await;
     assert_eq!(code(&res), "FORBIDDEN");
     ok(&svc, &admin, r#"mutation { a: addTranslationLanguage(tag: "en", name: "English") { tag base } b: addTranslationLanguage(tag: "de_de") { tag base } }"#, json!({})).await;
 
@@ -92,10 +127,22 @@ async fn translations_api() {
     let id = key["id"].as_str().unwrap();
 
     let set = r#"mutation($id: ID!, $t: String, $s: TranslationState) { setTranslation(keyId: $id, language: "de-DE", text: $t, state: $s) { translations { language state } } }"#;
-    ok(&svc, &contributor, set, json!({"id": id, "t": "{count, plural, one {# Artikel} other {# Artikel}}"})).await;
-    assert_eq!(code(&run(&svc, &contributor, set, json!({"id": id, "s": "REVIEWED"})).await), "FORBIDDEN");
+    ok(
+        &svc,
+        &contributor,
+        set,
+        json!({"id": id, "t": "{count, plural, one {# Artikel} other {# Artikel}}"}),
+    )
+    .await;
+    assert_eq!(
+        code(&run(&svc, &contributor, set, json!({"id": id, "s": "REVIEWED"})).await),
+        "FORBIDDEN"
+    );
     let reviewed = ok(&svc, &reviewer, set, json!({"id": id, "s": "REVIEWED"})).await;
-    assert_eq!(reviewed["setTranslation"]["translations"][0]["state"], "REVIEWED");
+    assert_eq!(
+        reviewed["setTranslation"]["translations"][0]["state"],
+        "REVIEWED"
+    );
 
     let page = ok(
         &svc,
@@ -126,12 +173,30 @@ async fn translations_api() {
         json!({"i": {"format": "PO", "content": "msgid \"hello\"\nmsgstr \"Hallo\"\n", "language": "de-DE"}}),
     )
     .await;
-    assert_eq!(report["importTranslations"], json!({"keysCreated": 1, "translationsCreated": 1}));
+    assert_eq!(
+        report["importTranslations"],
+        json!({"keysCreated": 1, "translationsCreated": 1})
+    );
 
-    let ids = ok(&svc, &contributor, "{ translationKeys { items { id } } }", json!({})).await;
-    let ids: Vec<Value> = ids["translationKeys"]["items"].as_array().unwrap().iter().map(|k| k["id"].clone()).collect();
-    let mv = "mutation($ids: [ID!]!, $ns: String!) { moveTranslationKeys(ids: $ids, namespace: $ns) }";
-    assert_eq!(code(&run(&svc, &reviewer, mv, json!({"ids": ids, "ns": "web"})).await), "FORBIDDEN");
+    let ids = ok(
+        &svc,
+        &contributor,
+        "{ translationKeys { items { id } } }",
+        json!({}),
+    )
+    .await;
+    let ids: Vec<Value> = ids["translationKeys"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| k["id"].clone())
+        .collect();
+    let mv =
+        "mutation($ids: [ID!]!, $ns: String!) { moveTranslationKeys(ids: $ids, namespace: $ns) }";
+    assert_eq!(
+        code(&run(&svc, &reviewer, mv, json!({"ids": ids, "ns": "web"})).await),
+        "FORBIDDEN"
+    );
     let moved = ok(&svc, &contributor, mv, json!({"ids": ids, "ns": "web"})).await;
     assert_eq!(moved["moveTranslationKeys"], 2);
     let ns = ok(&svc, &contributor, "{ translationNamespaces }", json!({})).await;
@@ -142,11 +207,23 @@ async fn translations_api() {
     let input = json!({"i": {"name": "R2", "kind": "S3", "provider": "r2", "bucket": "i18n-bucket",
         "endpoint": "https://acc.r2.cloudflarestorage.com", "region": "auto", "accessKeyId": "AK", "secret": "SK",
         "formats": ["JSON", "ANDROID_XML"]}});
-    assert_eq!(code(&run(&svc, &contributor, target, input.clone()).await), "FORBIDDEN");
+    assert_eq!(
+        code(&run(&svc, &contributor, target, input.clone()).await),
+        "FORBIDDEN"
+    );
     let t = ok(&svc, &admin, target, input).await;
     assert_eq!(t["createTranslationDeliveryTarget"]["hasSecret"], true);
-    assert_eq!(t["createTranslationDeliveryTarget"]["formats"], json!(["JSON", "ANDROID_XML"]));
-    let formats = ok(&svc, &contributor, "{ translationFormats { format slug importable } workflowEditor { provider url } }", json!({})).await;
+    assert_eq!(
+        t["createTranslationDeliveryTarget"]["formats"],
+        json!(["JSON", "ANDROID_XML"])
+    );
+    let formats = ok(
+        &svc,
+        &contributor,
+        "{ translationFormats { format slug importable } workflowEditor { provider url } }",
+        json!({}),
+    )
+    .await;
     assert_eq!(formats["translationFormats"].as_array().unwrap().len(), 11);
     assert_eq!(formats["workflowEditor"]["url"], "/n8n/");
 }
@@ -162,7 +239,9 @@ async fn webhooks_api_and_events() {
         post(move |body: String| {
             let sink = sink.clone();
             async move {
-                sink.lock().unwrap().push(serde_json::from_str(&body).unwrap());
+                sink.lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&body).unwrap());
                 "ok"
             }
         }),
@@ -174,32 +253,131 @@ async fn webhooks_api_and_events() {
     let create = r#"mutation($i: WebhookInput!) { createWebhook(input: $i) { secret webhook { id events headers managedBy } } }"#;
     let input = json!({"i": {"name": "n8n", "url": url, "events": ["entry.*", "contentType.*", "i18n.*"],
         "headers": [{"name": "Authorization", "value": "Bearer x"}], "managedBy": "n8n"}});
-    assert_eq!(code(&run(&svc, &user(Role::Contributor), create, input.clone()).await), "FORBIDDEN");
+    assert_eq!(
+        code(&run(&svc, &user(Role::Contributor), create, input.clone()).await),
+        "FORBIDDEN"
+    );
     let res = ok(&svc, &admin, create, input).await;
     let hook = &res["createWebhook"]["webhook"];
-    assert_eq!(hook["headers"], json!(["Authorization"]), "header values are write-only");
+    assert_eq!(
+        hook["headers"],
+        json!(["Authorization"]),
+        "header values are write-only"
+    );
     assert!(res["createWebhook"]["secret"].as_str().unwrap().len() >= 32);
     let id = hook["id"].as_str().unwrap().to_string();
 
     ok(&svc, &admin, r#"mutation { createContentType(input: {apiId: "Note", fields: [{name: "title", type: TEXT}, {name: "pin", type: PASSWORD}]}) { apiId } }"#, json!({})).await;
-    ok(&svc, &admin, r#"mutation { createNote(data: {title: "Hi", pin: "12345678"}) { id } }"#, json!({})).await;
-    ok(&svc, &admin, r#"mutation { addTranslationLanguage(tag: "en") { tag } }"#, json!({})).await;
+    ok(
+        &svc,
+        &admin,
+        r#"mutation { createNote(data: {title: "Hi", pin: "12345678"}) { id } }"#,
+        json!({}),
+    )
+    .await;
+    ok(
+        &svc,
+        &admin,
+        r#"mutation { addTranslationLanguage(tag: "en") { tag } }"#,
+        json!({}),
+    )
+    .await;
 
     // Deliveries are inline in this configuration.
     let got = received.lock().unwrap().clone();
     let events: Vec<&str> = got.iter().map(|b| b["event"].as_str().unwrap()).collect();
-    assert_eq!(events, ["contentType.create", "entry.create", "i18n.language.create"]);
-    assert_eq!(got[1]["data"]["entry"]["draft"], json!({"title": "Hi"}), "passwords never leave");
+    assert_eq!(
+        events,
+        ["contentType.create", "entry.create", "i18n.language.create"]
+    );
+    assert_eq!(
+        got[1]["data"]["entry"]["draft"],
+        json!({"title": "Hi"}),
+        "passwords never leave"
+    );
     let entry_id = got[1]["data"]["entry"]["id"].as_str().unwrap();
-    let fetched = ok(&svc, &admin, "query($id: ID!) { note(id: $id, stage: DRAFT) { title } }", json!({"id": entry_id})).await;
-    assert_eq!(fetched["note"]["title"], "Hi", "payload ids work with the API");
+    let fetched = ok(
+        &svc,
+        &admin,
+        "query($id: ID!) { note(id: $id, stage: DRAFT) { title } }",
+        json!({"id": entry_id}),
+    )
+    .await;
+    assert_eq!(
+        fetched["note"]["title"], "Hi",
+        "payload ids work with the API"
+    );
 
-    let log = ok(&svc, &admin, "query($id: ID!) { webhookDeliveries(id: $id) { event status attempts } webhookEvents }", json!({"id": id})).await;
+    let log = ok(
+        &svc,
+        &admin,
+        "query($id: ID!) { webhookDeliveries(id: $id) { event status attempts } webhookEvents }",
+        json!({"id": id}),
+    )
+    .await;
     assert_eq!(log["webhookDeliveries"].as_array().unwrap().len(), 3);
     assert_eq!(log["webhookDeliveries"][0]["status"], "SUCCESS");
-    assert!(log["webhookEvents"].as_array().unwrap().contains(&json!("i18n.publish")));
-    let ping = ok(&svc, &admin, "mutation($id: ID!) { testWebhook(id: $id) { status event } }", json!({"id": id})).await;
-    assert_eq!(ping["testWebhook"], json!({"status": "SUCCESS", "event": "webhook.ping"}));
-    ok(&svc, &admin, "mutation($id: ID!) { deleteWebhook(id: $id) }", json!({"id": id})).await;
-    assert_eq!(ok(&svc, &admin, "{ webhooks { id } }", json!({})).await["webhooks"], json!([]));
+    assert!(
+        log["webhookEvents"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("i18n.publish"))
+    );
+    let ping = ok(
+        &svc,
+        &admin,
+        "mutation($id: ID!) { testWebhook(id: $id) { status event } }",
+        json!({"id": id}),
+    )
+    .await;
+    assert_eq!(
+        ping["testWebhook"],
+        json!({"status": "SUCCESS", "event": "webhook.ping"})
+    );
+    ok(
+        &svc,
+        &admin,
+        "mutation($id: ID!) { deleteWebhook(id: $id) }",
+        json!({"id": id}),
+    )
+    .await;
+    assert_eq!(
+        ok(&svc, &admin, "{ webhooks { id } }", json!({})).await["webhooks"],
+        json!([])
+    );
+}
+
+#[tokio::test]
+async fn commercial_license_hides_the_workflow_editor() {
+    let workflows = || {
+        Some(WorkflowsInfo {
+            provider: "n8n".into(),
+            editor_url: "/n8n/".into(),
+        })
+    };
+    let query = "{ license workflowEditor { url } }";
+    for (license, editor) in [
+        (tess_graphql::License::Community, json!({"url": "/n8n/"})),
+        (tess_graphql::License::Commercial, Value::Null),
+    ] {
+        let storage: Arc<dyn Storage> = Arc::new(MemoryStorage::new());
+        let services = Services {
+            workflows: workflows(),
+            license,
+            ..Default::default()
+        };
+        let svc =
+            GraphqlService::with_services(storage, codec(), SchemaConfig::default(), services);
+        svc.install().await.unwrap();
+        let admin = Principal::User(Actor::system());
+        let res = ok(&svc, &admin, query, json!({})).await;
+        assert_eq!(
+            res,
+            json!({"license": license.as_str(), "workflowEditor": editor})
+        );
+        assert_eq!(
+            code(&run(&svc, &Principal::Public, query, json!({})).await),
+            "FORBIDDEN"
+        );
+    }
 }

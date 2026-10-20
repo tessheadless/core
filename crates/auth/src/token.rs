@@ -62,7 +62,10 @@ pub(crate) fn is_session(bearer: &str) -> bool {
 }
 
 fn sha256_hex(s: &str) -> String {
-    Sha256::digest(s.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+    Sha256::digest(s.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn random(n: usize) -> Vec<u8> {
@@ -75,16 +78,24 @@ fn random(n: usize) -> Vec<u8> {
 pub(crate) fn new_api_token() -> (String, String, String) {
     let id: String = random(8).iter().map(|b| format!("{b:02x}")).collect();
     let secret = B64.encode(random(32));
-    (id.clone(), format!("{TOKEN_PREFIX}{id}_{secret}"), sha256_hex(&secret))
+    (
+        id.clone(),
+        format!("{TOKEN_PREFIX}{id}_{secret}"),
+        sha256_hex(&secret),
+    )
 }
 
 /// `(id, secret)` from `tess_t1_<id>_<secret>`.
 pub(crate) fn parse_api_token(bearer: &str) -> Option<(&str, &str)> {
     let rest = bearer.strip_prefix(TOKEN_PREFIX)?;
     let (id, secret) = rest.split_once('_')?;
-    (id.len() == 16 && id.bytes().all(|b| b.is_ascii_hexdigit()) && !secret.is_empty()).then_some((id, secret))
+    (id.len() == 16 && id.bytes().all(|b| b.is_ascii_hexdigit()) && !secret.is_empty())
+        .then_some((id, secret))
 }
 
 pub(crate) fn secret_matches(secret: &str, stored_hash: &str) -> bool {
-    sha256_hex(secret).as_bytes().ct_eq(stored_hash.as_bytes()).into()
+    sha256_hex(secret)
+        .as_bytes()
+        .ct_eq(stored_hash.as_bytes())
+        .into()
 }

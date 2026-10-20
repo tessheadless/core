@@ -12,7 +12,8 @@ use tess_core::memory::MemoryStorage;
 use tess_core::secrets::SecretBox;
 use tess_core::{Actor, Cms, ContentTypeDef, FieldDef, FieldType, Storage};
 use tess_webhooks::{
-    DeliveryStatus, IdFn, WebhookConfig, WebhookHook, WebhookInput, WebhookService, WebhookUpdate, verify_signature,
+    DeliveryStatus, IdFn, WebhookConfig, WebhookHook, WebhookInput, WebhookService, WebhookUpdate,
+    verify_signature,
 };
 
 type Received = Arc<Mutex<Vec<(HeaderMap, Value)>>>;
@@ -28,7 +29,11 @@ async fn receiver(fail_first: usize) -> (String, Received) {
             async move {
                 let mut all = sink.lock().unwrap();
                 all.push((headers, serde_json::from_str(&body).unwrap()));
-                if all.len() <= fail_first { StatusCode::SERVICE_UNAVAILABLE } else { StatusCode::OK }
+                if all.len() <= fail_first {
+                    StatusCode::SERVICE_UNAVAILABLE
+                } else {
+                    StatusCode::OK
+                }
             }
         }),
     );
@@ -41,8 +46,18 @@ async fn receiver(fail_first: usize) -> (String, Received) {
 fn service(storage: Arc<dyn Storage>, inline: bool) -> Arc<WebhookService> {
     let ids: IdFn = Arc::new(|ct, id| format!("id:{ct}:{id}"));
     let refs: IdFn = Arc::new(|ct, _| format!("ref:{ct}"));
-    let config = WebhookConfig { inline, retry_delays: vec![Duration::from_millis(20)], ..WebhookConfig::default() };
-    Arc::new(WebhookService::new(storage, SecretBox::new(&[1u8; 32]).unwrap(), ids, refs, config))
+    let config = WebhookConfig {
+        inline,
+        retry_delays: vec![Duration::from_millis(20)],
+        ..WebhookConfig::default()
+    };
+    Arc::new(WebhookService::new(
+        storage,
+        SecretBox::new(&[1u8; 32]).unwrap(),
+        ids,
+        refs,
+        config,
+    ))
 }
 
 async fn wait_for(got: &Received, n: usize) {
@@ -56,13 +71,21 @@ async fn wait_for(got: &Received, n: usize) {
 }
 
 fn note_type() -> ContentTypeDef {
-    let f = |name: &str, field_type| FieldDef { name: name.into(), field_type, required: false, description: None };
+    let f = |name: &str, field_type| FieldDef {
+        name: name.into(),
+        field_type,
+        required: false,
+        description: None,
+    };
     ContentTypeDef {
         api_id: "Note".into(),
         plural_api_id: None,
         description: None,
         workflow: false,
-        fields: vec![f("title", FieldType::text()), f("pin", FieldType::Password { min_length: 4 })],
+        fields: vec![
+            f("title", FieldType::text()),
+            f("pin", FieldType::Password { min_length: 4 }),
+        ],
     }
 }
 
@@ -91,33 +114,79 @@ async fn delivers_signed_redacted_events_and_retries() {
         .unwrap();
 
     cms.create_content_type(note_type(), &admin).await.unwrap();
-    let data = json!({"title": "hello", "pin": "123456"}).as_object().unwrap().clone();
+    let data = json!({"title": "hello", "pin": "123456"})
+        .as_object()
+        .unwrap()
+        .clone();
     cms.create_entry("Note", data, &admin).await.unwrap();
 
     // contentType.create succeeds after one 503 retry, entry.create once: 3 requests.
     wait_for(&got, 3).await;
     let all = got.lock().unwrap().clone();
-    let events: Vec<_> = all.iter().map(|(_, b)| b["event"].as_str().unwrap().to_string()).collect();
-    assert_eq!(events.iter().filter(|e| *e == "contentType.create").count(), 2);
-    let (headers, body) = all.iter().find(|(_, b)| b["event"] == "entry.create").unwrap();
+    let events: Vec<_> = all
+        .iter()
+        .map(|(_, b)| b["event"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        events.iter().filter(|e| *e == "contentType.create").count(),
+        2
+    );
+    let (headers, body) = all
+        .iter()
+        .find(|(_, b)| b["event"] == "entry.create")
+        .unwrap();
     assert_eq!(body["contentType"], "Note");
-    assert_eq!(body["data"]["entry"]["draft"], json!({"title": "hello"}), "password redacted");
-    assert!(body["data"]["entry"]["id"].as_str().unwrap().starts_with("id:Note:"));
+    assert_eq!(
+        body["data"]["entry"]["draft"],
+        json!({"title": "hello"}),
+        "password redacted"
+    );
+    assert!(
+        body["data"]["entry"]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("id:Note:")
+    );
     assert_eq!(headers["x-api-key"], "k3y");
     assert_eq!(headers["x-tess-event"], "entry.create");
     let raw = serde_json::to_vec(body).unwrap();
-    assert!(verify_signature(&secret, headers["x-tess-signature"].to_str().unwrap(), &raw));
+    assert!(verify_signature(
+        &secret,
+        headers["x-tess-signature"].to_str().unwrap(),
+        &raw
+    ));
 
     // The log records the retry.
     tokio::time::sleep(Duration::from_millis(100)).await;
     let log = svc.deliveries(&hook.id, 10).await.unwrap();
     assert_eq!(log.len(), 2);
-    let ct_delivery = log.iter().find(|d| d.event == "contentType.create").unwrap();
-    assert_eq!((ct_delivery.status, ct_delivery.attempts), (DeliveryStatus::Success, 2));
+    let ct_delivery = log
+        .iter()
+        .find(|d| d.event == "contentType.create")
+        .unwrap();
+    assert_eq!(
+        (ct_delivery.status, ct_delivery.attempts),
+        (DeliveryStatus::Success, 2)
+    );
 
     // Disabled webhooks receive nothing.
-    svc.update(&hook.id, WebhookUpdate { enabled: Some(false), ..Default::default() }, &admin).await.unwrap();
-    cms.create_entry("Note", json!({"title": "x"}).as_object().unwrap().clone(), &admin).await.unwrap();
+    svc.update(
+        &hook.id,
+        WebhookUpdate {
+            enabled: Some(false),
+            ..Default::default()
+        },
+        &admin,
+    )
+    .await
+    .unwrap();
+    cms.create_entry(
+        "Note",
+        json!({"title": "x"}).as_object().unwrap().clone(),
+        &admin,
+    )
+    .await
+    .unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(got.lock().unwrap().len(), 3);
 }
@@ -135,11 +204,28 @@ async fn validation_permissions_and_ping() {
         events: events.into_iter().map(String::from).collect(),
         ..WebhookInput::default()
     };
-    assert!(svc.create(input("ftp://h/x", vec!["*"]), &admin).await.is_err());
-    assert!(svc.create(input("http://user:pw@h/x", vec!["*"]), &admin).await.is_err());
+    assert!(
+        svc.create(input("ftp://h/x", vec!["*"]), &admin)
+            .await
+            .is_err()
+    );
+    assert!(
+        svc.create(input("http://user:pw@h/x", vec!["*"]), &admin)
+            .await
+            .is_err()
+    );
     assert!(svc.create(input(&url, vec![]), &admin).await.is_err());
-    assert!(svc.create(input(&url, vec!["entry.**"]), &admin).await.is_err());
-    let member = Actor { id: None, name: "m".into(), role: tess_core::Role::Contributor, scope: vec![] };
+    assert!(
+        svc.create(input(&url, vec!["entry.**"]), &admin)
+            .await
+            .is_err()
+    );
+    let member = Actor {
+        id: None,
+        name: "m".into(),
+        role: tess_core::Role::Contributor,
+        scope: vec![],
+    };
     assert!(svc.create(input(&url, vec!["*"]), &member).await.is_err());
 
     let (hook, _) = svc.create(input(&url, vec!["*"]), &admin).await.unwrap();

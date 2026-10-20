@@ -17,7 +17,9 @@ fn main() {
         println!("cargo:rerun-if-changed={}", src.join(f).display());
     }
     // OUT_DIR is `<target>/<profile>/build/<pkg>-<hash>/out`; binaries live in `<target>/<profile>`.
-    let Some(bin_dir) = std::env::var_os("OUT_DIR").map(PathBuf::from).and_then(|o| o.ancestors().nth(3).map(Path::to_path_buf))
+    let Some(bin_dir) = std::env::var_os("OUT_DIR")
+        .map(PathBuf::from)
+        .and_then(|o| o.ancestors().nth(3).map(Path::to_path_buf))
     else {
         return;
     };
@@ -27,7 +29,11 @@ fn main() {
             continue; // packaged sources without the deploy folder
         }
         if let Err(e) = std::fs::copy(&from, bin_dir.join(f)) {
-            println!("cargo:warning=cannot copy {} to {}: {e}", from.display(), bin_dir.display());
+            println!(
+                "cargo:warning=cannot copy {} to {}: {e}",
+                from.display(),
+                bin_dir.display()
+            );
         }
     }
 }

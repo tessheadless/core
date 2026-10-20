@@ -18,12 +18,12 @@ mod i18n;
 pub mod ids;
 mod jsonobj;
 mod media;
+pub mod naming;
 mod plugins;
+mod schema;
 mod search;
 mod webhooks;
 mod workflow;
-pub mod naming;
-mod schema;
 
 use std::collections::BTreeSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -102,6 +102,26 @@ pub struct Services {
     pub webhooks: Option<Arc<tess_webhooks::WebhookService>>,
     /// Embedded workflow editor (n8n), when configured.
     pub workflows: Option<WorkflowsInfo>,
+    /// The license Tess runs under (`TESS_LICENSE`).
+    pub license: License,
+}
+
+/// The license Tess runs under. The commercial license excludes the embedded
+/// n8n workflow editor.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum License {
+    #[default]
+    Community,
+    Commercial,
+}
+
+impl License {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            License::Community => "COMMUNITY",
+            License::Commercial => "COMMERCIAL",
+        }
+    }
 }
 
 /// Where the admin UI finds the workflow editor.
@@ -133,7 +153,12 @@ impl GraphqlService {
         Self::with_services(storage, codec, config, Services::default())
     }
 
-    pub fn with_services(storage: Arc<dyn Storage>, codec: IdCodec, config: SchemaConfig, services: Services) -> Self {
+    pub fn with_services(
+        storage: Arc<dyn Storage>,
+        codec: IdCodec,
+        config: SchemaConfig,
+        services: Services,
+    ) -> Self {
         let cms = Cms::new(storage).with_schema_guard(Arc::new(naming::check_conflicts));
         GraphqlService {
             cms,
@@ -175,7 +200,9 @@ impl GraphqlService {
             search.install(&self.cms);
         }
         if let Some(webhooks) = &self.services.webhooks {
-            self.cms.hooks().add(Arc::new(tess_webhooks::WebhookHook::new(webhooks.clone())));
+            self.cms
+                .hooks()
+                .add(Arc::new(tess_webhooks::WebhookHook::new(webhooks.clone())));
             webhooks.register_events(tess_i18n::I18N_EVENTS);
         }
         if let Some(i18n) = &self.services.i18n {
@@ -215,7 +242,12 @@ impl GraphqlService {
                 let settings = search.all_settings().await?;
                 content_types
                     .iter()
-                    .filter(|ct| settings.get(&ct.api_id).and_then(|s| tess_search::SearchIndex::new(ct, s)).is_some())
+                    .filter(|ct| {
+                        settings
+                            .get(&ct.api_id)
+                            .and_then(|s| tess_search::SearchIndex::new(ct, s))
+                            .is_some()
+                    })
                     .map(|ct| ct.api_id.clone())
                     .collect()
             }
@@ -223,8 +255,12 @@ impl GraphqlService {
         };
         let fingerprint = {
             let mut h = DefaultHasher::new();
-            serde_json::to_string(&content_types).unwrap_or_default().hash(&mut h);
-            serde_json::to_string(&components).unwrap_or_default().hash(&mut h);
+            serde_json::to_string(&content_types)
+                .unwrap_or_default()
+                .hash(&mut h);
+            serde_json::to_string(&components)
+                .unwrap_or_default()
+                .hash(&mut h);
             searchable.hash(&mut h);
             h.finish()
         };
@@ -234,7 +270,11 @@ impl GraphqlService {
             b.checked_at = Instant::now();
             return Ok(b.schema.clone());
         }
-        let model = schema::Model { content_types: &content_types, components: &components, searchable: &searchable };
+        let model = schema::Model {
+            content_types: &content_types,
+            components: &components,
+            searchable: &searchable,
+        };
         let schema = schema::build(
             model,
             &self.config,
@@ -244,13 +284,24 @@ impl GraphqlService {
             &self.services,
         )
         .map_err(|e| CmsError::Storage(format!("cannot build GraphQL schema: {e}")))?;
-        tracing::info!(content_types = content_types.len(), "GraphQL schema rebuilt");
-        *guard = Some(Built { schema: schema.clone(), fingerprint, checked_at: Instant::now() });
+        tracing::info!(
+            content_types = content_types.len(),
+            "GraphQL schema rebuilt"
+        );
+        *guard = Some(Built {
+            schema: schema.clone(),
+            fingerprint,
+            checked_at: Instant::now(),
+        });
         Ok(schema)
     }
 
     /// Executes a request as `principal`.
-    pub async fn execute(&self, request: async_graphql::Request, principal: Principal) -> async_graphql::Response {
+    pub async fn execute(
+        &self,
+        request: async_graphql::Request,
+        principal: Principal,
+    ) -> async_graphql::Response {
         match self.schema().await {
             Ok(schema) => schema.execute(request.data(principal)).await,
             Err(e) => {

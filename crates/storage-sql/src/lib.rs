@@ -17,15 +17,15 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use tess_core::{CmsError, ContentType, Entry, EntryQuery, Page, Result, Stage, Storage};
 use sea_query::{
-    Alias, ColumnDef, Expr, ExprTrait, Index, MysqlQueryBuilder, OnConflict, PostgresQueryBuilder, Query,
-    SqliteQueryBuilder, Table, TableCreateStatement,
+    Alias, ColumnDef, Expr, ExprTrait, Index, MysqlQueryBuilder, OnConflict, PostgresQueryBuilder,
+    Query, SqliteQueryBuilder, Table, TableCreateStatement,
 };
 use sea_query_sqlx::SqlxBinder;
 use serde_json::{Map, Value};
 use sqlx::Row;
 use sqlx::types::Json;
+use tess_core::{CmsError, ContentType, Entry, EntryQuery, Page, Result, Stage, Storage};
 use uuid::Uuid;
 
 pub use dialect::Dialect;
@@ -85,7 +85,11 @@ macro_rules! execute {
     ($self:expr, $stmt:expr) => {
         with_pool!($self, |pool, qb| {
             let (sql, values) = $stmt.build_sqlx(qb());
-            sqlx::query_with(audited(sql), values).execute(pool).await.map_err(err)?.rows_affected()
+            sqlx::query_with(audited(sql), values)
+                .execute(pool)
+                .await
+                .map_err(err)?
+                .rows_affected()
         })
     };
 }
@@ -114,7 +118,9 @@ macro_rules! entry_from_row {
             $row.try_get::<String, _>("content_type").map_err(err)?,
             $row.try_get::<String, _>("id").map_err(err)?,
             $row.try_get::<Json<Value>, _>("draft").map_err(err)?.0,
-            $row.try_get::<Option<Json<Value>>, _>("published").map_err(err)?.map(|j| j.0),
+            $row.try_get::<Option<Json<Value>>, _>("published")
+                .map_err(err)?
+                .map(|j| j.0),
         )
     };
 }
@@ -130,7 +136,12 @@ fn json<T: serde::de::DeserializeOwned>(v: Json<Value>) -> Result<T> {
 }
 
 /// Rebuilds an entry from its stored per-stage documents.
-fn entry_from_docs(content_type: String, id: String, draft: Value, published: Option<Value>) -> Result<Entry> {
+fn entry_from_docs(
+    content_type: String,
+    id: String,
+    draft: Value,
+    published: Option<Value>,
+) -> Result<Entry> {
     let as_map = |v: Value| -> Result<Map<String, Value>> {
         match v {
             Value::Object(m) => Ok(m),
@@ -147,14 +158,24 @@ impl SqlStorage {
     /// `sqlite://path/to/file.db` (created if missing).
     pub async fn connect(url: &str, max_connections: u32) -> Result<Self> {
         let dialect = Dialect::from_url(url).ok_or_else(|| {
-            CmsError::Storage("DATABASE_URL must start with postgres://, mysql:// or sqlite://".into())
+            CmsError::Storage(
+                "DATABASE_URL must start with postgres://, mysql:// or sqlite://".into(),
+            )
         })?;
         let pool = match dialect {
             Dialect::Postgres => Pool::Postgres(
-                sqlx::postgres::PgPoolOptions::new().max_connections(max_connections).connect(url).await.map_err(err)?,
+                sqlx::postgres::PgPoolOptions::new()
+                    .max_connections(max_connections)
+                    .connect(url)
+                    .await
+                    .map_err(err)?,
             ),
             Dialect::MySql => Pool::MySql(
-                sqlx::mysql::MySqlPoolOptions::new().max_connections(max_connections).connect(url).await.map_err(err)?,
+                sqlx::mysql::MySqlPoolOptions::new()
+                    .max_connections(max_connections)
+                    .connect(url)
+                    .await
+                    .map_err(err)?,
             ),
             Dialect::Sqlite => {
                 let opts = sqlx::sqlite::SqliteConnectOptions::from_str(url)
@@ -163,7 +184,11 @@ impl SqlStorage {
                     .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
                     .busy_timeout(Duration::from_secs(10));
                 // SQLite creates the file, not its folder (e.g. `sqlite://data/tess.db`).
-                if let Some(dir) = opts.get_filename().parent().filter(|d| !d.as_os_str().is_empty()) {
+                if let Some(dir) = opts
+                    .get_filename()
+                    .parent()
+                    .filter(|d| !d.as_os_str().is_empty())
+                {
                     std::fs::create_dir_all(dir).map_err(err)?;
                 }
                 Pool::Sqlite(
@@ -200,7 +225,11 @@ impl SqlStorage {
                 .table(Alias::new(CONTENT_TYPES))
                 .if_not_exists()
                 .col(self.key_column("api_id", 64).primary_key())
-                .col(ColumnDef::new(Alias::new("definition")).json_binary().not_null())
+                .col(
+                    ColumnDef::new(Alias::new("definition"))
+                        .json_binary()
+                        .not_null(),
+                )
                 .to_owned(),
             Table::create()
                 .table(Alias::new(ENTRIES))
@@ -209,7 +238,11 @@ impl SqlStorage {
                 .col(self.key_column("id", 36))
                 .col(ColumnDef::new(Alias::new("draft")).json_binary().not_null())
                 .col(ColumnDef::new(Alias::new("published")).json_binary().null())
-                .primary_key(Index::create().col(Alias::new("content_type")).col(Alias::new("id")))
+                .primary_key(
+                    Index::create()
+                        .col(Alias::new("content_type"))
+                        .col(Alias::new("id")),
+                )
                 .to_owned(),
             Table::create()
                 .table(Alias::new(SETTINGS))
@@ -260,19 +293,28 @@ impl Storage for SqlStorage {
                     .await
                     .map_err(err)?;
                 for t in self.schema() {
-                    sqlx::query(audited(t.build(PostgresQueryBuilder))).execute(&mut *tx).await.map_err(err)?;
+                    sqlx::query(audited(t.build(PostgresQueryBuilder)))
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(err)?;
                 }
                 tx.commit().await.map_err(err)
             }
             Pool::MySql(pool) => {
                 for t in self.schema() {
-                    sqlx::query(audited(t.build(MysqlQueryBuilder))).execute(pool).await.map_err(err)?;
+                    sqlx::query(audited(t.build(MysqlQueryBuilder)))
+                        .execute(pool)
+                        .await
+                        .map_err(err)?;
                 }
                 Ok(())
             }
             Pool::Sqlite(pool) => {
                 for t in self.schema() {
-                    sqlx::query(audited(t.build(SqliteQueryBuilder))).execute(pool).await.map_err(err)?;
+                    sqlx::query(audited(t.build(SqliteQueryBuilder)))
+                        .execute(pool)
+                        .await
+                        .map_err(err)?;
                 }
                 Ok(())
             }
@@ -280,8 +322,13 @@ impl Storage for SqlStorage {
     }
 
     async fn list_content_types(&self) -> Result<Vec<ContentType>> {
-        let stmt = Query::select().column(Alias::new("definition")).from(Alias::new(CONTENT_TYPES)).to_owned();
-        Ok(fetch!(self, stmt, |row| json(row.try_get::<Json<Value>, _>("definition").map_err(err)?)))
+        let stmt = Query::select()
+            .column(Alias::new("definition"))
+            .from(Alias::new(CONTENT_TYPES))
+            .to_owned();
+        Ok(fetch!(self, stmt, |row| json(
+            row.try_get::<Json<Value>, _>("definition").map_err(err)?
+        )))
     }
 
     async fn get_content_type(&self, api_id: &str) -> Result<Option<ContentType>> {
@@ -290,8 +337,9 @@ impl Storage for SqlStorage {
             .from(Alias::new(CONTENT_TYPES))
             .and_where(Expr::col(Alias::new("api_id")).eq(api_id))
             .to_owned();
-        let rows: Vec<ContentType> =
-            fetch!(self, stmt, |row| json(row.try_get::<Json<Value>, _>("definition").map_err(err)?));
+        let rows: Vec<ContentType> = fetch!(self, stmt, |row| json(
+            row.try_get::<Json<Value>, _>("definition").map_err(err)?
+        ));
         Ok(rows.into_iter().next())
     }
 
@@ -301,7 +349,11 @@ impl Storage for SqlStorage {
             .into_table(Alias::new(CONTENT_TYPES))
             .columns(cols(["api_id", "definition"]))
             .values_panic([content_type.api_id.clone().into(), definition.into()])
-            .on_conflict(OnConflict::column(Alias::new("api_id")).update_column(Alias::new("definition")).to_owned())
+            .on_conflict(
+                OnConflict::column(Alias::new("api_id"))
+                    .update_column(Alias::new("definition"))
+                    .to_owned(),
+            )
             .to_owned();
         execute!(self, stmt);
         Ok(())
@@ -320,7 +372,10 @@ impl Storage for SqlStorage {
             let mut tx = pool.begin().await.map_err(err)?;
             for stmt in [&entries, &ct] {
                 let (sql, values) = stmt.build_sqlx(qb());
-                sqlx::query_with(audited(sql), values).execute(&mut *tx).await.map_err(err)?;
+                sqlx::query_with(audited(sql), values)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(err)?;
             }
             tx.commit().await.map_err(err)?;
         });
@@ -354,7 +409,9 @@ impl Storage for SqlStorage {
                 published.into(),
             ])
             .on_conflict(
-                OnConflict::columns(cols(["content_type", "id"])).update_columns(cols(["draft", "published"])).to_owned(),
+                OnConflict::columns(cols(["content_type", "id"]))
+                    .update_columns(cols(["draft", "published"]))
+                    .to_owned(),
             )
             .to_owned();
         execute!(self, stmt);
@@ -401,7 +458,10 @@ impl Storage for SqlStorage {
             .from(Alias::new(SETTINGS))
             .and_where(Expr::col(Alias::new("setting_key")).eq(key))
             .to_owned();
-        let rows: Vec<Value> = fetch!(self, stmt, |row| Ok(row.try_get::<Json<Value>, _>("value").map_err(err)?.0));
+        let rows: Vec<Value> = fetch!(self, stmt, |row| Ok(row
+            .try_get::<Json<Value>, _>("value")
+            .map_err(err)?
+            .0));
         Ok(rows.into_iter().next())
     }
 
@@ -410,7 +470,11 @@ impl Storage for SqlStorage {
             .into_table(Alias::new(SETTINGS))
             .columns(cols(["setting_key", "value"]))
             .values_panic([key.into(), value.clone().into()])
-            .on_conflict(OnConflict::column(Alias::new("setting_key")).update_column(Alias::new("value")).to_owned())
+            .on_conflict(
+                OnConflict::column(Alias::new("setting_key"))
+                    .update_column(Alias::new("value"))
+                    .to_owned(),
+            )
             .to_owned();
         execute!(self, stmt);
         Ok(())
@@ -426,7 +490,10 @@ impl Storage for SqlStorage {
 
     async fn list_settings(&self, prefix: &str) -> Result<Vec<(String, Value)>> {
         // Settings are few: filter and sort in Rust, independent of collations.
-        let stmt = Query::select().columns(cols(["setting_key", "value"])).from(Alias::new(SETTINGS)).to_owned();
+        let stmt = Query::select()
+            .columns(cols(["setting_key", "value"]))
+            .from(Alias::new(SETTINGS))
+            .to_owned();
         let mut rows: Vec<(String, Value)> = fetch!(self, stmt, |row| Ok((
             row.try_get::<String, _>("setting_key").map_err(err)?,
             row.try_get::<Json<Value>, _>("value").map_err(err)?.0,

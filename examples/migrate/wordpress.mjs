@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+// SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+// Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
 // Copies a WordPress site WITHOUT plugins to Tess: media, authors,
 // categories, tags, posts and pages (models from wordpress-models.yaml).
 //

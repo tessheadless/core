@@ -26,8 +26,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tess_core::query::EntryQuery;
 use tess_core::{
-    Actor, Cms, CmsError, ContentType, Entry, EntryAction, EntryEvent, FieldDef, FieldType, Hook, Result, Stage,
-    Storage,
+    Actor, Cms, CmsError, ContentType, Entry, EntryAction, EntryEvent, FieldDef, FieldType, Hook,
+    Result, Stage, Storage,
 };
 use uuid::Uuid;
 
@@ -82,13 +82,18 @@ impl IndexKind {
 pub fn index_kind(field_type: &FieldType) -> Option<IndexKind> {
     Some(match field_type {
         FieldType::Text { .. } | FieldType::Markdown => IndexKind::Text,
-        FieldType::Enum { .. } | FieldType::Uuid | FieldType::Relation { many: false, .. } => IndexKind::Keyword,
+        FieldType::Enum { .. } | FieldType::Uuid | FieldType::Relation { many: false, .. } => {
+            IndexKind::Keyword
+        }
         FieldType::Relation { many: true, .. } => IndexKind::Keywords,
         FieldType::Int => IndexKind::Int,
         FieldType::Float => IndexKind::Float,
         FieldType::Boolean => IndexKind::Bool,
         FieldType::Date | FieldType::DateTime => IndexKind::Timestamp,
-        FieldType::Json | FieldType::Password { .. } | FieldType::Component { .. } | FieldType::DynamicZone { .. } => {
+        FieldType::Json
+        | FieldType::Password { .. }
+        | FieldType::Component { .. }
+        | FieldType::DynamicZone { .. } => {
             return None;
         }
     })
@@ -119,14 +124,29 @@ impl SearchIndex {
             .fields
             .iter()
             .filter(|f| settings.fields.contains(&f.name))
-            .filter_map(|f| Some(IndexField { name: f.name.clone(), kind: index_kind(&f.field_type)? }))
+            .filter_map(|f| {
+                Some(IndexField {
+                    name: f.name.clone(),
+                    kind: index_kind(&f.field_type)?,
+                })
+            })
             .collect();
-        fields.iter().any(|f| f.kind == IndexKind::Text).then(|| SearchIndex { content_type: ct.api_id.clone(), fields })
+        fields
+            .iter()
+            .any(|f| f.kind == IndexKind::Text)
+            .then(|| SearchIndex {
+                content_type: ct.api_id.clone(),
+                fields,
+            })
     }
 
     /// Fields searched by queries.
     pub fn text_fields(&self) -> Vec<&str> {
-        self.fields.iter().filter(|f| f.kind == IndexKind::Text).map(|f| f.name.as_str()).collect()
+        self.fields
+            .iter()
+            .filter(|f| f.kind == IndexKind::Text)
+            .map(|f| f.name.as_str())
+            .collect()
     }
 }
 
@@ -188,7 +208,12 @@ fn index_value(kind: IndexKind, v: &Value) -> Option<Value> {
     match kind {
         IndexKind::Text | IndexKind::Keyword => v.is_string().then(|| v.clone()),
         IndexKind::Keywords => {
-            let ids: Vec<Value> = v.as_array()?.iter().filter(|x| x.is_string()).cloned().collect();
+            let ids: Vec<Value> = v
+                .as_array()?
+                .iter()
+                .filter(|x| x.is_string())
+                .cloned()
+                .collect();
             Some(Value::Array(ids))
         }
         IndexKind::Int => v.is_i64().then(|| v.clone()),
@@ -198,7 +223,11 @@ fn index_value(kind: IndexKind, v: &Value) -> Option<Value> {
             let s = v.as_str()?;
             let secs = match DateTime::parse_from_rfc3339(s) {
                 Ok(t) => t.timestamp(),
-                Err(_) => NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()?.and_hms_opt(0, 0, 0)?.and_utc().timestamp(),
+                Err(_) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .ok()?
+                    .and_hms_opt(0, 0, 0)?
+                    .and_utc()
+                    .timestamp(),
             };
             Some(Value::from(secs))
         }
@@ -215,7 +244,11 @@ fn docs_for(index: &SearchIndex, entry: &Entry) -> Vec<SearchDoc> {
                 .iter()
                 .filter_map(|f| Some((f.name.clone(), index_value(f.kind, data.get(&f.name)?)?)))
                 .collect();
-            Some(SearchDoc { entry_id: entry.id, stage, fields })
+            Some(SearchDoc {
+                entry_id: entry.id,
+                stage,
+                fields,
+            })
         })
         .collect()
 }
@@ -242,12 +275,17 @@ impl SearchService {
 
     /// Registers the indexing hook.
     pub fn install(&self, cms: &Cms) {
-        cms.hooks().replace_prefixed("builtin:search", vec![Arc::new(SearchHook(self.clone()))]);
+        cms.hooks()
+            .replace_prefixed("builtin:search", vec![Arc::new(SearchHook(self.clone()))]);
     }
 
     /// Settings of one content type (disabled when never set).
     pub async fn settings(&self, content_type: &str) -> Result<ModelSearchSettings> {
-        match self.storage.get_setting(&settings_key(content_type)).await? {
+        match self
+            .storage
+            .get_setting(&settings_key(content_type))
+            .await?
+        {
             Some(v) => serde_json::from_value(v).map_err(CmsError::storage),
             None => Ok(ModelSearchSettings::default()),
         }
@@ -260,8 +298,14 @@ impl SearchService {
             .await?
             .into_iter()
             .map(|(key, v)| {
-                let api_id = key.strip_prefix(SETTINGS_PREFIX).unwrap_or(&key).to_string();
-                Ok((api_id, serde_json::from_value(v).map_err(CmsError::storage)?))
+                let api_id = key
+                    .strip_prefix(SETTINGS_PREFIX)
+                    .unwrap_or(&key)
+                    .to_string();
+                Ok((
+                    api_id,
+                    serde_json::from_value(v).map_err(CmsError::storage)?,
+                ))
             })
             .collect()
     }
@@ -283,23 +327,32 @@ impl SearchService {
     ) -> Result<(ModelSearchSettings, u64)> {
         actor.require_admin()?;
         for name in fields {
-            let field = ct
-                .fields
-                .iter()
-                .find(|f| f.name == *name)
-                .ok_or_else(|| CmsError::validation(format!("`{}` has no field `{name}`", ct.api_id)))?;
+            let field = ct.fields.iter().find(|f| f.name == *name).ok_or_else(|| {
+                CmsError::validation(format!("`{}` has no field `{name}`", ct.api_id))
+            })?;
             if index_kind(&field.field_type).is_none() {
-                return Err(CmsError::validation(format!("field `{name}`: this type cannot be indexed")));
+                return Err(CmsError::validation(format!(
+                    "field `{name}`: this type cannot be indexed"
+                )));
             }
         }
         // Model order, without duplicates.
-        let fields = ct.fields.iter().filter(|f| fields.contains(&f.name)).map(|f| f.name.clone()).collect();
+        let fields = ct
+            .fields
+            .iter()
+            .filter(|f| fields.contains(&f.name))
+            .map(|f| f.name.clone())
+            .collect();
         let settings = ModelSearchSettings { enabled, fields };
         if enabled && SearchIndex::new(ct, &settings).is_none() {
-            return Err(CmsError::validation("select at least one TEXT or MARKDOWN field to search"));
+            return Err(CmsError::validation(
+                "select at least one TEXT or MARKDOWN field to search",
+            ));
         }
         let value = serde_json::to_value(&settings).map_err(CmsError::storage)?;
-        self.storage.put_setting(&settings_key(&ct.api_id), &value).await?;
+        self.storage
+            .put_setting(&settings_key(&ct.api_id), &value)
+            .await?;
         let count = self.reindex(ct).await?;
         Ok((settings, count))
     }
@@ -317,7 +370,11 @@ impl SearchService {
         q.limit = 500;
         loop {
             let page = self.storage.query_entries(&ct.api_id, &q).await?;
-            let docs: Vec<_> = page.items.iter().flat_map(|e| docs_for(&index, e)).collect();
+            let docs: Vec<_> = page
+                .items
+                .iter()
+                .flat_map(|e| docs_for(&index, e))
+                .collect();
             count += page.items.len() as u64;
             if !docs.is_empty() {
                 self.engine.upsert(&index, docs).await?;
@@ -344,8 +401,17 @@ impl SearchService {
         let Some(index) = self.index_for(&ct).await? else {
             return Ok(());
         };
-        let id = event.entry.as_ref().or(event.previous.as_ref()).map(|e| e.id).unwrap_or_default();
-        let docs = event.entry.as_ref().map(|e| docs_for(&index, e)).unwrap_or_default();
+        let id = event
+            .entry
+            .as_ref()
+            .or(event.previous.as_ref())
+            .map(|e| e.id)
+            .unwrap_or_default();
+        let docs = event
+            .entry
+            .as_ref()
+            .map(|e| docs_for(&index, e))
+            .unwrap_or_default();
         // Stages that no longer exist (unpublish, delete) are removed.
         let stale: Vec<String> = [Stage::Draft, Stage::Published]
             .into_iter()
@@ -364,7 +430,9 @@ impl SearchService {
     async fn content_type_changed(&self, ct: &ContentType, deleted: bool) -> Result<()> {
         if deleted {
             self.engine.drop_index(&ct.api_id).await?;
-            self.storage.delete_setting(&settings_key(&ct.api_id)).await?;
+            self.storage
+                .delete_setting(&settings_key(&ct.api_id))
+                .await?;
             return Ok(());
         }
         self.reindex(ct).await.map(|_| ())
@@ -420,7 +488,12 @@ pub(crate) mod tests {
         let search = SearchService::new(engine, storage);
         search.install(&cms);
         let sys = Actor::system();
-        let f = |name: &str, field_type| FieldDef { name: name.into(), field_type, required: false, description: None };
+        let f = |name: &str, field_type| FieldDef {
+            name: name.into(),
+            field_type,
+            required: false,
+            description: None,
+        };
         let ct = cms
             .create_content_type(
                 ContentTypeDef {
@@ -440,7 +513,12 @@ pub(crate) mod tests {
             )
             .await
             .unwrap();
-        let q = |text: &str, stage| SearchRequest { text: text.into(), stage, limit: 10, offset: 0 };
+        let q = |text: &str, stage| SearchRequest {
+            text: text.into(),
+            stage,
+            limit: 10,
+            offset: 0,
+        };
 
         let rust = cms
             .create_entry(
@@ -450,56 +528,206 @@ pub(crate) mod tests {
             )
             .await
             .unwrap();
-        let cms_doc =
-            cms.create_entry(&ct.api_id, data(json!({"title": "Headless CMS", "body": "Content with GraphQL"})), &sys).await.unwrap();
+        let cms_doc = cms
+            .create_entry(
+                &ct.api_id,
+                data(json!({"title": "Headless CMS", "body": "Content with GraphQL"})),
+                &sys,
+            )
+            .await
+            .unwrap();
         cms.publish_entry(&ct.api_id, rust.id, &sys).await.unwrap();
 
         // Opt-in: nothing is searchable before an Admin enables it.
         assert!(search.index_for(&ct).await.unwrap().is_none());
-        assert_eq!(search.search(&ct, &q("rust", Stage::Draft)).await.unwrap().total, 0);
-        let editor = Actor { id: None, name: "ed".into(), role: Role::Contributor, scope: vec![] };
-        assert!(search.update_settings(&ct, true, &names(&["title"]), &editor).await.is_err(), "admins only");
-        assert!(search.update_settings(&ct, true, &names(&["views"]), &sys).await.is_err(), "needs a text field");
-        assert!(search.update_settings(&ct, true, &names(&["title", "meta"]), &sys).await.is_err(), "JSON");
-        assert!(search.update_settings(&ct, true, &names(&["nope"]), &sys).await.is_err());
+        assert_eq!(
+            search
+                .search(&ct, &q("rust", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
+        let editor = Actor {
+            id: None,
+            name: "ed".into(),
+            role: Role::Contributor,
+            scope: vec![],
+        };
+        assert!(
+            search
+                .update_settings(&ct, true, &names(&["title"]), &editor)
+                .await
+                .is_err(),
+            "admins only"
+        );
+        assert!(
+            search
+                .update_settings(&ct, true, &names(&["views"]), &sys)
+                .await
+                .is_err(),
+            "needs a text field"
+        );
+        assert!(
+            search
+                .update_settings(&ct, true, &names(&["title", "meta"]), &sys)
+                .await
+                .is_err(),
+            "JSON"
+        );
+        assert!(
+            search
+                .update_settings(&ct, true, &names(&["nope"]), &sys)
+                .await
+                .is_err()
+        );
 
         // Only `title` is indexed (and searched) at first.
-        let (saved, count) = search.update_settings(&ct, true, &names(&["views", "title", "title"]), &sys).await.unwrap();
+        let (saved, count) = search
+            .update_settings(&ct, true, &names(&["views", "title", "title"]), &sys)
+            .await
+            .unwrap();
         assert_eq!((saved.fields, count), (names(&["title", "views"]), 2));
-        assert_eq!(search.search(&ct, &q("borrowing", Stage::Draft)).await.unwrap().total, 0);
-        assert_eq!(search.search(&ct, &q("ownership", Stage::Draft)).await.unwrap().ids, vec![rust.id]);
-        search.update_settings(&ct, true, &names(&["title", "body", "views", "day"]), &sys).await.unwrap();
+        assert_eq!(
+            search
+                .search(&ct, &q("borrowing", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
+        assert_eq!(
+            search
+                .search(&ct, &q("ownership", Stage::Draft))
+                .await
+                .unwrap()
+                .ids,
+            vec![rust.id]
+        );
+        search
+            .update_settings(&ct, true, &names(&["title", "body", "views", "day"]), &sys)
+            .await
+            .unwrap();
 
-        let hits = search.search(&ct, &q("borrowing", Stage::Draft)).await.unwrap();
+        let hits = search
+            .search(&ct, &q("borrowing", Stage::Draft))
+            .await
+            .unwrap();
         assert_eq!(hits.ids, vec![rust.id]);
-        assert_eq!(search.search(&ct, &q("graphql", Stage::Published)).await.unwrap().total, 0, "drafts are not public");
-        assert_eq!(search.search(&ct, &q("graphql", Stage::Draft)).await.unwrap().ids, vec![cms_doc.id]);
+        assert_eq!(
+            search
+                .search(&ct, &q("graphql", Stage::Published))
+                .await
+                .unwrap()
+                .total,
+            0,
+            "drafts are not public"
+        );
+        assert_eq!(
+            search
+                .search(&ct, &q("graphql", Stage::Draft))
+                .await
+                .unwrap()
+                .ids,
+            vec![cms_doc.id]
+        );
 
         // Updates replace the indexed draft but not the published version.
-        cms.update_entry(&ct.api_id, rust.id, data(json!({"title": "Rust lifetimes"})), &sys).await.unwrap();
-        assert_eq!(search.search(&ct, &q("lifetimes", Stage::Draft)).await.unwrap().total, 1);
-        assert_eq!(search.search(&ct, &q("lifetimes", Stage::Published)).await.unwrap().total, 0);
-        assert_eq!(search.search(&ct, &q("ownership", Stage::Published)).await.unwrap().total, 1);
+        cms.update_entry(
+            &ct.api_id,
+            rust.id,
+            data(json!({"title": "Rust lifetimes"})),
+            &sys,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            search
+                .search(&ct, &q("lifetimes", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            1
+        );
+        assert_eq!(
+            search
+                .search(&ct, &q("lifetimes", Stage::Published))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
+        assert_eq!(
+            search
+                .search(&ct, &q("ownership", Stage::Published))
+                .await
+                .unwrap()
+                .total,
+            1
+        );
 
-        cms.unpublish_entry(&ct.api_id, rust.id, &sys).await.unwrap();
-        assert_eq!(search.search(&ct, &q("ownership", Stage::Published)).await.unwrap().total, 0);
+        cms.unpublish_entry(&ct.api_id, rust.id, &sys)
+            .await
+            .unwrap();
+        assert_eq!(
+            search
+                .search(&ct, &q("ownership", Stage::Published))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
         cms.delete_entry(&ct.api_id, rust.id, &sys).await.unwrap();
-        assert_eq!(search.search(&ct, &q("lifetimes", Stage::Draft)).await.unwrap().total, 0);
+        assert_eq!(
+            search
+                .search(&ct, &q("lifetimes", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
 
         // Reindex from the database.
         let index = search.index_for(&ct).await.unwrap().unwrap();
         search.engine().reset_index(&index).await.unwrap();
-        assert_eq!(search.search(&ct, &q("graphql", Stage::Draft)).await.unwrap().total, 0);
+        assert_eq!(
+            search
+                .search(&ct, &q("graphql", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
         assert_eq!(search.reindex(&ct).await.unwrap(), 1);
-        assert_eq!(search.search(&ct, &q("graphql", Stage::Draft)).await.unwrap().total, 1);
+        assert_eq!(
+            search
+                .search(&ct, &q("graphql", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            1
+        );
 
         // Disabling drops the index but remembers the fields.
-        let (saved, _) = search.update_settings(&ct, false, &names(&["title", "body"]), &sys).await.unwrap();
+        let (saved, _) = search
+            .update_settings(&ct, false, &names(&["title", "body"]), &sys)
+            .await
+            .unwrap();
         assert_eq!(saved.fields, names(&["title", "body"]));
-        assert_eq!(search.search(&ct, &q("graphql", Stage::Draft)).await.unwrap().total, 0);
+        assert_eq!(
+            search
+                .search(&ct, &q("graphql", Stage::Draft))
+                .await
+                .unwrap()
+                .total,
+            0
+        );
 
         cms.delete_content_type(&ct.api_id, &sys).await.unwrap();
-        assert!(search.all_settings().await.unwrap().is_empty(), "settings removed with the type");
+        assert!(
+            search.all_settings().await.unwrap().is_empty(),
+            "settings removed with the type"
+        );
     }
 
     #[tokio::test]
@@ -509,13 +737,28 @@ pub(crate) mod tests {
 
     #[test]
     fn values_follow_the_field_type() {
-        assert_eq!(index_value(IndexKind::Timestamp, &json!("1970-01-02")), Some(json!(86400)));
-        assert_eq!(index_value(IndexKind::Timestamp, &json!("1970-01-01T00:01:00.000Z")), Some(json!(60)));
+        assert_eq!(
+            index_value(IndexKind::Timestamp, &json!("1970-01-02")),
+            Some(json!(86400))
+        );
+        assert_eq!(
+            index_value(IndexKind::Timestamp, &json!("1970-01-01T00:01:00.000Z")),
+            Some(json!(60))
+        );
         assert_eq!(index_value(IndexKind::Timestamp, &json!("soon")), None);
         assert_eq!(index_value(IndexKind::Float, &json!(2)), Some(json!(2.0)));
         assert_eq!(index_value(IndexKind::Int, &json!(2.5)), None);
-        assert_eq!(index_value(IndexKind::Keywords, &json!(["a", 1, "b"])), Some(json!(["a", "b"])));
+        assert_eq!(
+            index_value(IndexKind::Keywords, &json!(["a", 1, "b"])),
+            Some(json!(["a", "b"]))
+        );
         assert_eq!(index_kind(&FieldType::Password { min_length: 8 }), None);
-        assert_eq!(index_kind(&FieldType::Relation { target: "A".into(), many: true }), Some(IndexKind::Keywords));
+        assert_eq!(
+            index_kind(&FieldType::Relation {
+                target: "A".into(),
+                many: true
+            }),
+            Some(IndexKind::Keywords)
+        );
     }
 }

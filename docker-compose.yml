@@ -2,12 +2,17 @@
 # SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
 # Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
-# Default: CMS alone with embedded RocksDB + local media (`docker compose up`).
-# Optional backends are compose profiles, e.g.:
+# Default: Tess alone, with its embedded RocksDB database and files on disk
+# (`docker compose up`). Optional services are compose profiles:
+#   docker compose --profile local up      # everything on this machine: Garage (S3),
+#                                          # Typesense, Valkey and n8n
+#   docker compose --profile local-commercial up   # the same without n8n (TESS_LICENSE=commercial)
 #   docker compose --profile postgres --profile search up
 #   docker compose --profile n8n up        # workflows (n8n), with TESS_N8N_URL
-#   docker compose --profile cache up      # response cache (Valkey), with TESS_CACHE=valkey
-# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE / TESS_CACHE accordingly in `.env`.
+#   docker compose --profile cache up      # response cache (Valkey), with TESS_CACHE=valkey;
+#                                          # cache-redis, cache-keydb, cache-dragonfly instead
+# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE / TESS_CACHE accordingly in `.env`
+# (`scripts/init-env.sh --local` writes a `.env` for the `local` profile).
 #
 # Images: ghcr.io/tessheadless/tess:<TESS_VERSION>[-<TESS_ARCH>] (see INSTALL.md).
 # From a source checkout, `docker compose up --build` builds them locally.
@@ -18,6 +23,11 @@ services:
     env_file: .env
     ports: ["8080:8080"]
     volumes: ["tess-data:/data"]
+    depends_on:
+      # With Garage (profiles s3, local, local-commercial): start once its bucket is ready.
+      garage-init:
+        condition: service_completed_successfully
+        required: false
     restart: unless-stopped
 
   postgres:
@@ -50,12 +60,19 @@ services:
   dynamodb:
     profiles: [dynamodb]
     image: amazon/dynamodb-local:latest
-    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    command:
+      [
+        "-jar",
+        "DynamoDBLocal.jar",
+        "-sharedDb",
+        "-dbPath",
+        "/home/dynamodblocal/data",
+      ]
     volumes: ["dynamodb-data:/home/dynamodblocal/data"]
     user: root
 
   garage:
-    profiles: [s3]
+    profiles: [s3, local, local-commercial]
     image: dxflrs/garage:v2.1.0
     environment:
       GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-}
@@ -65,10 +82,25 @@ services:
       - garage-data:/var/lib/garage
     ports: ["3900:3900"]
 
+  # Creates the layout, the TESS_S3_BUCKET bucket and the TESS_S3_ACCESS_KEY_ID
+  # key in Garage, then exits (idempotent: runs at every start).
+  garage-init:
+    profiles: [s3, local, local-commercial]
+    image: curlimages/curl:8.11.1
+    entrypoint: ["/bin/sh", "/setup.sh"]
+    environment:
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-}
+      TESS_S3_BUCKET: ${TESS_S3_BUCKET:-tess-media}
+      TESS_S3_ACCESS_KEY_ID: ${TESS_S3_ACCESS_KEY_ID:-}
+      TESS_S3_SECRET_ACCESS_KEY: ${TESS_S3_SECRET_ACCESS_KEY:-}
+    volumes: ["./deploy/garage/setup.sh:/setup.sh:ro"]
+    depends_on: [garage]
+    restart: "no"
+
   # Workflow automation, embedded in the admin UI at /admin/workflows.
   # Set TESS_N8N_URL=http://n8n:5678 for the tess service (see .env.example).
   n8n:
-    profiles: [n8n]
+    profiles: [n8n, local]
     build:
       context: .
       dockerfile: deploy/n8n/Dockerfile
@@ -89,17 +121,80 @@ services:
     volumes: ["n8n-data:/home/node/.n8n"]
     restart: unless-stopped
 
-  # Response cache (TESS_CACHE=valkey, VALKEY_URL=redis://valkey:6379).
-  valkey:
-    profiles: [cache]
+  # Response cache: one of these servers (all speak the Redis protocol), with
+  # TESS_CACHE=<service> and TESS_CACHE_URL=redis://<service>:6379 in `.env`.
+  # Each one is a cache: no persistence, bounded memory (CACHE_MAXMEMORY),
+  # least recently used keys evicted first.
+  valkey: # --profile cache
+    profiles: [cache, cache-valkey, local, local-commercial]
     image: valkey/valkey:8-alpine
-    # A cache: no persistence, bounded memory. `volatile-lru` evicts cached
-    # responses (they have a TTL) but never the invalidation counters.
-    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "${VALKEY_MAXMEMORY:-256mb}", "--maxmemory-policy", "volatile-lru"]
+    command:
+      [
+        "valkey-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-${VALKEY_MAXMEMORY:-256mb}}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  redis: # --profile cache-redis
+    profiles: [cache-redis]
+    image: redis:8-alpine
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  keydb: # --profile cache-keydb
+    profiles: [cache-keydb]
+    # KeyDB publishes no versioned multi-arch tag; its last release is 6.3.4.
+    image: eqalpha/keydb:latest
+    command:
+      [
+        "keydb-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "${CACHE_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    restart: unless-stopped
+
+  dragonfly: # --profile cache-dragonfly
+    profiles: [cache-dragonfly]
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2
+    # Cache mode: evicts the least recently used keys at the memory limit.
+    # Dragonfly needs 256 MiB per thread: raise DRAGONFLY_THREADS with it.
+    command:
+      [
+        "--cache_mode=true",
+        "--maxmemory=${CACHE_MAXMEMORY:-256mb}",
+        "--proactor_threads=${DRAGONFLY_THREADS:-1}",
+        "--dbfilename=",
+      ]
+    ulimits:
+      memlock: -1
     restart: unless-stopped
 
   typesense:
-    profiles: [search]
+    profiles: [search, local, local-commercial]
     image: typesense/typesense:29.0
     environment:
       TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-}

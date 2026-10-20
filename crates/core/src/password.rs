@@ -13,7 +13,10 @@ use crate::error::{CmsError, Result};
 
 pub async fn hash(password: String) -> Result<String> {
     tokio::task::spawn_blocking(move || {
-        Argon2::default().hash_password(password.as_bytes()).map(|h| h.to_string()).map_err(CmsError::storage)
+        Argon2::default()
+            .hash_password(password.as_bytes())
+            .map(|h| h.to_string())
+            .map_err(CmsError::storage)
     })
     .await
     .map_err(CmsError::storage)?
@@ -22,8 +25,12 @@ pub async fn hash(password: String) -> Result<String> {
 /// `false` for a wrong password or a malformed hash.
 pub async fn verify(password: String, phc: String) -> Result<bool> {
     tokio::task::spawn_blocking(move || {
-        let Ok(parsed) = PasswordHash::new(&phc) else { return Ok(false) };
-        Ok(Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok())
+        let Ok(parsed) = PasswordHash::new(&phc) else {
+            return Ok(false);
+        };
+        Ok(Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok())
     })
     .await
     .map_err(CmsError::storage)?

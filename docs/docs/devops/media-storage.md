@@ -36,6 +36,13 @@ When `TESS_S3_ENDPOINT` is set, path-style URLs are used
 (`TESS_S3_FORCE_PATH_STYLE`), as most self-hosted services require. To
 create the bucket at startup, set `TESS_S3_CREATE_BUCKET=true`.
 
+File URLs are presigned for the endpoint. When Tess reaches the store through
+an internal address that browsers can't (`http://garage:3900` inside Docker
+Compose), set `TESS_S3_PUBLIC_ENDPOINT` to the address browsers use, e.g.
+`http://localhost:3900` or `https://s3.example.com`. Tess keeps talking to
+`TESS_S3_ENDPOINT`, and signs download and direct-upload URLs for the public
+one.
+
 ### Direct uploads
 
 With S3 stores, clients can upload straight to the bucket with a presigned

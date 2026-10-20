@@ -34,15 +34,28 @@ fn service() -> Arc<GraphqlService> {
         ttl: Duration::from_secs(3600),
     })
     .unwrap();
-    Arc::new(GraphqlService::new(Arc::new(MemoryStorage::new()), codec, SchemaConfig::default()))
+    Arc::new(GraphqlService::new(
+        Arc::new(MemoryStorage::new()),
+        codec,
+        SchemaConfig::default(),
+    ))
 }
 
 fn actor(role: Role) -> Principal {
-    Principal::User(Actor { id: None, name: format!("{role:?}"), role, scope: vec![] })
+    Principal::User(Actor {
+        id: None,
+        name: format!("{role:?}"),
+        role,
+        scope: vec![],
+    })
 }
 
 /// Sends one JSON-RPC message to `/mcp` as `principal` and returns the parsed body.
-async fn rpc(svc: &Arc<GraphqlService>, principal: Principal, message: Value) -> (StatusCode, Value) {
+async fn rpc(
+    svc: &Arc<GraphqlService>,
+    principal: Principal,
+    message: Value,
+) -> (StatusCode, Value) {
     let mut req = Request::builder()
         .method("POST")
         .uri("/mcp")
@@ -53,14 +66,26 @@ async fn rpc(svc: &Arc<GraphqlService>, principal: Principal, message: Value) ->
         .body(Body::from(message.to_string()))
         .unwrap();
     req.extensions_mut().insert(principal);
-    let res = http_service(svc.clone(), vec!["localhost".into()]).oneshot(req).await.unwrap();
+    let res = http_service(svc.clone(), vec!["localhost".into()])
+        .oneshot(req)
+        .await
+        .unwrap();
     let status = res.status();
     let bytes: Bytes = res.into_body().collect().await.unwrap().to_bytes();
-    let body = if bytes.is_empty() { Value::Null } else { serde_json::from_slice(&bytes).unwrap_or(Value::Null) };
+    let body = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
     (status, body)
 }
 
-async fn call(svc: &Arc<GraphqlService>, principal: Principal, tool: &str, arguments: Value) -> Value {
+async fn call(
+    svc: &Arc<GraphqlService>,
+    principal: Principal,
+    tool: &str,
+    arguments: Value,
+) -> Value {
     let (status, body) = rpc(
         svc,
         principal,
@@ -72,7 +97,10 @@ async fn call(svc: &Arc<GraphqlService>, principal: Principal, tool: &str, argum
 }
 
 fn text(result: &Value) -> String {
-    result["content"][0]["text"].as_str().unwrap_or_default().to_string()
+    result["content"][0]["text"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
 }
 
 const SETUP: &str = r#"mutation {
@@ -90,9 +118,19 @@ async fn seed(svc: &Arc<GraphqlService>) {
 #[tokio::test]
 async fn lists_the_two_tools_without_a_handshake() {
     let svc = service();
-    let (status, body) = rpc(&svc, Principal::Public, json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})).await;
+    let (status, body) = rpc(
+        &svc,
+        Principal::Public,
+        json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let names: Vec<&str> = body["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+    let names: Vec<&str> = body["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
     assert_eq!(names, vec!["get_schema", "graphql_query"]);
 }
 
@@ -103,12 +141,27 @@ async fn get_schema_returns_the_schema_and_one_type() {
     let all = call(&svc, Principal::Public, "get_schema", json!({})).await;
     assert!(text(&all).contains("type Post"), "{}", text(&all));
 
-    let one = call(&svc, Principal::Public, "get_schema", json!({"type": "Post"})).await;
+    let one = call(
+        &svc,
+        Principal::Public,
+        "get_schema",
+        json!({"type": "Post"}),
+    )
+    .await;
     assert!(text(&one).starts_with("type Post"), "{}", text(&one));
-    assert!(!text(&one).contains("type Query"), "a single type must not include other types");
+    assert!(
+        !text(&one).contains("type Query"),
+        "a single type must not include other types"
+    );
     assert_ne!(one["isError"], json!(true));
 
-    let missing = call(&svc, Principal::Public, "get_schema", json!({"type": "Nope"})).await;
+    let missing = call(
+        &svc,
+        Principal::Public,
+        "get_schema",
+        json!({"type": "Nope"}),
+    )
+    .await;
     assert_eq!(missing["isError"], json!(true));
     assert!(text(&missing).contains("Available types"));
 }
@@ -117,7 +170,13 @@ async fn get_schema_returns_the_schema_and_one_type() {
 async fn anonymous_reads_published_content_only() {
     let svc = service();
     seed(&svc).await;
-    let res = call(&svc, Principal::Public, "graphql_query", json!({"query": "{ posts { total } }"})).await;
+    let res = call(
+        &svc,
+        Principal::Public,
+        "graphql_query",
+        json!({"query": "{ posts { total } }"}),
+    )
+    .await;
     assert_ne!(res["isError"], json!(true), "{}", text(&res));
     let body: Value = serde_json::from_str(&text(&res)).unwrap();
     assert_eq!(body["data"]["posts"]["total"], 0);
@@ -175,7 +234,13 @@ async fn contributor_can_create_then_read_a_draft() {
 async fn graphql_errors_are_reported_as_tool_errors() {
     let svc = service();
     seed(&svc).await;
-    let res = call(&svc, Principal::Public, "graphql_query", json!({"query": "{ doesNotExist }"})).await;
+    let res = call(
+        &svc,
+        Principal::Public,
+        "graphql_query",
+        json!({"query": "{ doesNotExist }"}),
+    )
+    .await;
     assert_eq!(res["isError"], json!(true));
     assert!(text(&res).contains("errors"));
 }
@@ -195,9 +260,19 @@ async fn depth_limit_is_enforced() {
         query.push_str("} ");
     }
     query.push_str("} } }");
-    let res = call(&svc, Principal::Public, "graphql_query", json!({"query": query})).await;
+    let res = call(
+        &svc,
+        Principal::Public,
+        "graphql_query",
+        json!({"query": query}),
+    )
+    .await;
     assert_eq!(res["isError"], json!(true), "{}", text(&res));
-    assert!(text(&res).contains("Query is nested too deep."), "{}", text(&res));
+    assert!(
+        text(&res).contains("Query is nested too deep."),
+        "{}",
+        text(&res)
+    );
 }
 
 #[tokio::test]
@@ -215,9 +290,17 @@ async fn unknown_tool_is_a_protocol_error() {
 #[tokio::test]
 async fn oversized_query_is_refused() {
     let svc = service();
-    let query = format!("{{ posts(where: {{title_contains: \"{}\"}}) {{ total }} }}", "x".repeat(tess_mcp::MAX_QUERY_BYTES));
-    let res = call(&svc, Principal::Public, "graphql_query", json!({"query": query})).await;
+    let query = format!(
+        "{{ posts(where: {{title_contains: \"{}\"}}) {{ total }} }}",
+        "x".repeat(tess_mcp::MAX_QUERY_BYTES)
+    );
+    let res = call(
+        &svc,
+        Principal::Public,
+        "graphql_query",
+        json!({"query": query}),
+    )
+    .await;
     assert_eq!(res["isError"], json!(true));
     assert!(text(&res).contains("limit"));
 }
-

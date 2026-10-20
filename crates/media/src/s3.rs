@@ -18,6 +18,10 @@ pub struct S3Config {
     pub bucket: String,
     /// Custom endpoint for S3-compatible services (Garage, MinIO, R2, ...).
     pub endpoint: Option<String>,
+    /// Endpoint as browsers reach it, for presigned URLs, when it differs from
+    /// `endpoint` (e.g. `http://garage:3900` inside Docker, `http://localhost:3900`
+    /// or `https://s3.example.com` for browsers).
+    pub public_endpoint: Option<String>,
     /// Region; Garage uses `garage` by default.
     pub region: Option<String>,
     /// Path-style URLs (`endpoint/bucket/key`), required by most self-hosted services.
@@ -29,6 +33,8 @@ pub struct S3Config {
 
 pub struct S3BlobStore {
     client: Client,
+    /// Signs the URLs given to browsers (`public_endpoint`, else `client`).
+    presigner: Client,
     bucket: String,
 }
 
@@ -50,22 +56,53 @@ impl S3BlobStore {
             loader = loader.region(aws_config::Region::new(region));
         }
         if let Some((id, secret)) = config.credentials {
-            loader = loader.credentials_provider(aws_sdk_s3::config::Credentials::new(id, secret, None, None, "tess-config"));
+            loader = loader.credentials_provider(aws_sdk_s3::config::Credentials::new(
+                id,
+                secret,
+                None,
+                None,
+                "tess-config",
+            ));
         }
         let shared = loader.load().await;
-        let mut builder = aws_sdk_s3::config::Builder::from(&shared).force_path_style(config.force_path_style);
-        if let Some(endpoint) = config.endpoint {
-            builder = builder.endpoint_url(endpoint);
+        let client_for = |endpoint: Option<String>| {
+            let mut builder = aws_sdk_s3::config::Builder::from(&shared)
+                .force_path_style(config.force_path_style);
+            if let Some(endpoint) = endpoint {
+                builder = builder.endpoint_url(endpoint);
+            }
+            Client::from_conf(builder.build())
+        };
+        let client = client_for(config.endpoint);
+        let presigner = match config.public_endpoint {
+            Some(public) => client_for(Some(public)),
+            None => client.clone(),
+        };
+        S3BlobStore {
+            client,
+            presigner,
+            bucket: config.bucket,
         }
-        S3BlobStore { client: Client::from_conf(builder.build()), bucket: config.bucket }
     }
 
     /// Creates the bucket if missing (local development).
     pub async fn ensure_bucket(&self) -> Result<()> {
-        if self.client.head_bucket().bucket(&self.bucket).send().await.is_ok() {
+        if self
+            .client
+            .head_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
-        self.client.create_bucket().bucket(&self.bucket).send().await.map_err(err)?;
+        self.client
+            .create_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await
+            .map_err(err)?;
         Ok(())
     }
 }
@@ -92,7 +129,14 @@ impl BlobStore for S3BlobStore {
 
     async fn get(&self, key: &str) -> Result<Option<Bytes>> {
         check_key(key)?;
-        match self.client.get_object().bucket(&self.bucket).key(key).send().await {
+        match self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+        {
             Ok(out) => Ok(Some(out.body.collect().await.map_err(err)?.into_bytes())),
             Err(e) if e.as_service_error().is_some_and(|s| s.is_no_such_key()) => Ok(None),
             Err(e) => Err(err(e)),
@@ -101,7 +145,14 @@ impl BlobStore for S3BlobStore {
 
     async fn head(&self, key: &str) -> Result<Option<ObjectInfo>> {
         check_key(key)?;
-        match self.client.head_object().bucket(&self.bucket).key(key).send().await {
+        match self
+            .client
+            .head_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+        {
             Ok(out) => Ok(Some(ObjectInfo {
                 size: out.content_length.unwrap_or(0).max(0) as u64,
                 content_type: out.content_type,
@@ -113,15 +164,26 @@ impl BlobStore for S3BlobStore {
 
     async fn delete(&self, key: &str) -> Result<()> {
         check_key(key)?;
-        self.client.delete_object().bucket(&self.bucket).key(key).send().await.map_err(err)?;
+        self.client
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(err)?;
         Ok(())
     }
 
-    async fn presign_put(&self, key: &str, content_type: &str, ttl: Duration) -> Result<Option<PresignedRequest>> {
+    async fn presign_put(
+        &self,
+        key: &str,
+        content_type: &str,
+        ttl: Duration,
+    ) -> Result<Option<PresignedRequest>> {
         check_key(key)?;
         let config = PresigningConfig::expires_in(ttl).map_err(err)?;
         let req = self
-            .client
+            .presigner
             .put_object()
             .bucket(&self.bucket)
             .key(key)
@@ -132,7 +194,10 @@ impl BlobStore for S3BlobStore {
         Ok(Some(PresignedRequest {
             url: req.uri().to_string(),
             method: req.method().to_string(),
-            headers: req.headers().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            headers: req
+                .headers()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
             expires_in: ttl,
         }))
     }
@@ -140,7 +205,14 @@ impl BlobStore for S3BlobStore {
     async fn presign_get(&self, key: &str, ttl: Duration) -> Result<Option<String>> {
         check_key(key)?;
         let config = PresigningConfig::expires_in(ttl).map_err(err)?;
-        let req = self.client.get_object().bucket(&self.bucket).key(key).presigned(config).await.map_err(err)?;
+        let req = self
+            .presigner
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .presigned(config)
+            .await
+            .map_err(err)?;
         Ok(Some(req.uri().to_string()))
     }
 }
@@ -162,21 +234,36 @@ mod tests {
         let store = S3BlobStore::connect(S3Config {
             bucket: env("TESS_TEST_S3_BUCKET"),
             endpoint: Some(endpoint),
+            public_endpoint: None,
             region: Some(std::env::var("TESS_TEST_S3_REGION").unwrap_or_else(|_| "garage".into())),
             force_path_style: true,
             credentials: Some((env("TESS_TEST_S3_KEY_ID"), env("TESS_TEST_S3_SECRET"))),
         })
         .await;
         let key = "tests/roundtrip.txt";
-        store.put(key, Bytes::from_static(b"hello"), "text/plain").await.unwrap();
-        assert_eq!(store.get(key).await.unwrap().unwrap(), Bytes::from_static(b"hello"));
+        store
+            .put(key, Bytes::from_static(b"hello"), "text/plain")
+            .await
+            .unwrap();
+        assert_eq!(
+            store.get(key).await.unwrap().unwrap(),
+            Bytes::from_static(b"hello")
+        );
         let info = store.head(key).await.unwrap().unwrap();
         assert_eq!(info.size, 5);
         assert_eq!(info.content_type.as_deref(), Some("text/plain"));
 
-        let get_url = store.presign_get(key, Duration::from_secs(60)).await.unwrap().unwrap();
+        let get_url = store
+            .presign_get(key, Duration::from_secs(60))
+            .await
+            .unwrap()
+            .unwrap();
         assert!(get_url.contains("X-Amz-Signature"), "{get_url}");
-        let put = store.presign_put("tests/presigned.txt", "text/plain", Duration::from_secs(60)).await.unwrap().unwrap();
+        let put = store
+            .presign_put("tests/presigned.txt", "text/plain", Duration::from_secs(60))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(put.method, "PUT");
 
         store.delete(key).await.unwrap();

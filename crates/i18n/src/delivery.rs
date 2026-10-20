@@ -175,9 +175,12 @@ fn blank(v: Option<String>) -> Option<String> {
 
 fn check_url(field: &str, url: &Option<String>) -> Result<()> {
     if let Some(u) = url {
-        let parsed = reqwest::Url::parse(u).map_err(|_| CmsError::validation(format!("{field}: `{u}` is not a valid URL")))?;
+        let parsed = reqwest::Url::parse(u)
+            .map_err(|_| CmsError::validation(format!("{field}: `{u}` is not a valid URL")))?;
         if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-            return Err(CmsError::validation(format!("{field} must be an http(s) URL")));
+            return Err(CmsError::validation(format!(
+                "{field} must be an http(s) URL"
+            )));
         }
     }
     Ok(())
@@ -187,27 +190,46 @@ fn check_prefix(prefix: &str) -> Result<String> {
     let p = prefix.trim().trim_matches('/').to_string();
     let ok = p.is_empty()
         || p.split('/').all(|seg| {
-            !seg.is_empty() && seg != "." && seg != ".." && seg.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+            !seg.is_empty()
+                && seg != "."
+                && seg != ".."
+                && seg
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
         });
-    if ok { Ok(p) } else { Err(CmsError::validation("the path prefix may only hold letters, digits, `.`, `_`, `-` and `/`")) }
+    if ok {
+        Ok(p)
+    } else {
+        Err(CmsError::validation(
+            "the path prefix may only hold letters, digits, `.`, `_`, `-` and `/`",
+        ))
+    }
 }
 
 fn check(t: &DeliveryTarget) -> Result<()> {
     if t.name.trim().is_empty() || t.name.chars().count() > 100 {
-        return Err(CmsError::validation("the target name must have 1 to 100 characters"));
+        return Err(CmsError::validation(
+            "the target name must have 1 to 100 characters",
+        ));
     }
     if t.formats.is_empty() {
         return Err(CmsError::validation("choose at least one format"));
     }
     if t.states.is_empty() {
-        return Err(CmsError::validation("choose at least one translation state"));
+        return Err(CmsError::validation(
+            "choose at least one translation state",
+        ));
     }
     check_url("endpoint", &t.endpoint)?;
     check_url("publicUrl", &t.public_url)?;
     let bucket_ok = (3..=63).contains(&t.bucket.len())
-        && t.bucket.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"-.".contains(&b));
+        && t.bucket
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"-.".contains(&b));
     if !bucket_ok {
-        return Err(CmsError::validation("bucket/container names have 3 to 63 lowercase letters, digits, `-` or `.`"));
+        return Err(CmsError::validation(
+            "bucket/container names have 3 to 63 lowercase letters, digits, `-` or `.`",
+        ));
     }
     match t.kind {
         StorageKind::S3 => {
@@ -219,11 +241,19 @@ fn check(t: &DeliveryTarget) -> Result<()> {
         }
         StorageKind::AzureBlob => {
             let account = t.access_key_id.as_deref().unwrap_or_default();
-            if !(3..=24).contains(&account.len()) || !account.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()) {
-                return Err(CmsError::validation("the Azure storage account name has 3 to 24 lowercase letters or digits"));
+            if !(3..=24).contains(&account.len())
+                || !account
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+            {
+                return Err(CmsError::validation(
+                    "the Azure storage account name has 3 to 24 lowercase letters or digits",
+                ));
             }
             if t.secret.is_none() {
-                return Err(CmsError::validation("Azure targets need the account key or a SAS token"));
+                return Err(CmsError::validation(
+                    "Azure targets need the account key or a SAS token",
+                ));
             }
         }
     }
@@ -248,7 +278,11 @@ impl I18nService {
     }
 
     pub async fn target(&self, id: &str) -> Result<DeliveryTarget> {
-        let v = self.storage.get_setting(&key(id)).await?.ok_or_else(|| CmsError::NotFound(format!("target `{id}`")))?;
+        let v = self
+            .storage
+            .get_setting(&key(id))
+            .await?
+            .ok_or_else(|| CmsError::NotFound(format!("target `{id}`")))?;
         serde_json::from_value(v).map_err(CmsError::storage)
     }
 
@@ -261,7 +295,11 @@ impl I18nService {
         tags.iter().map(|t| normalize_tag(t)).collect()
     }
 
-    pub async fn create_target(&self, input: DeliveryInput, actor: &Actor) -> Result<DeliveryTarget> {
+    pub async fn create_target(
+        &self,
+        input: DeliveryInput,
+        actor: &Actor,
+    ) -> Result<DeliveryTarget> {
         actor.require_admin()?;
         let id = Uuid::new_v4().to_string();
         let ts = format_ts(now());
@@ -297,7 +335,12 @@ impl I18nService {
         Ok(t)
     }
 
-    pub async fn update_target(&self, id: &str, u: DeliveryUpdate, actor: &Actor) -> Result<DeliveryTarget> {
+    pub async fn update_target(
+        &self,
+        id: &str,
+        u: DeliveryUpdate,
+        actor: &Actor,
+    ) -> Result<DeliveryTarget> {
         actor.require_admin()?;
         let mut t = self.target(id).await?;
         macro_rules! set {
@@ -356,7 +399,12 @@ impl I18nService {
         actor.require_admin()?;
         let targets = match id {
             Some(id) => vec![self.target(id).await?],
-            None => self.targets().await?.into_iter().filter(|t| t.enabled).collect(),
+            None => self
+                .targets()
+                .await?
+                .into_iter()
+                .filter(|t| t.enabled)
+                .collect(),
         };
         let mut reports = vec![];
         for t in targets {
@@ -386,7 +434,14 @@ impl I18nService {
                 tracing::error!(error = %e, "cannot record a translation publish");
             }
         }
-        let report = PublishReport { target_id: t.id.clone(), name: t.name.clone(), ok, files, error, published_at };
+        let report = PublishReport {
+            target_id: t.id.clone(),
+            name: t.name.clone(),
+            ok,
+            files,
+            error,
+            published_at,
+        };
         if !ok {
             tracing::warn!(target = %t.name, error = ?report.error, "translation publish failed");
         }
@@ -396,7 +451,11 @@ impl I18nService {
 
     async fn upload_all(&self, t: &DeliveryTarget, published_at: &str) -> Result<u32> {
         let uploader = self.uploader(t).await?;
-        let prefix = if t.path_prefix.is_empty() { String::new() } else { format!("{}/", t.path_prefix) };
+        let prefix = if t.path_prefix.is_empty() {
+            String::new()
+        } else {
+            format!("{}/", t.path_prefix)
+        };
         let mut manifest: BTreeMap<&str, Vec<String>> = BTreeMap::new();
         let mut count = 0;
         for format in &t.formats {
@@ -409,7 +468,13 @@ impl I18nService {
             };
             for file in self.export(&opts).await? {
                 let path = format!("{}/{}", format.slug(), file.path);
-                uploader.put(&format!("{prefix}{path}"), Bytes::from(file.content), &file.content_type).await?;
+                uploader
+                    .put(
+                        &format!("{prefix}{path}"),
+                        Bytes::from(file.content),
+                        &file.content_type,
+                    )
+                    .await?;
                 manifest.entry(format.slug()).or_default().push(path);
                 count += 1;
             }
@@ -422,16 +487,27 @@ impl I18nService {
             "files": manifest,
         });
         let body = serde_json::to_vec_pretty(&body).unwrap_or_default();
-        uploader.put(&format!("{prefix}manifest.json"), Bytes::from(body), "application/json; charset=utf-8").await?;
+        uploader
+            .put(
+                &format!("{prefix}manifest.json"),
+                Bytes::from(body),
+                "application/json; charset=utf-8",
+            )
+            .await?;
         Ok(count + 1)
     }
 
     async fn uploader(&self, t: &DeliveryTarget) -> Result<Box<dyn Uploader>> {
-        let secret = t.secret.as_ref().map(|s| self.secrets.open(&purpose(&t.id), s)).transpose()?;
+        let secret = t
+            .secret
+            .as_ref()
+            .map(|s| self.secrets.open(&purpose(&t.id), s))
+            .transpose()?;
         match t.kind {
             #[cfg(feature = "s3")]
             StorageKind::S3 => {
                 let store = tess_media::S3BlobStore::connect(tess_media::S3Config {
+                    public_endpoint: None,
                     bucket: t.bucket.clone(),
                     endpoint: t.endpoint.clone(),
                     region: t.region.clone(),
@@ -457,7 +533,9 @@ impl I18nService {
     /// Called after every translation change: schedules the auto-publish targets.
     pub(crate) async fn after_change(self: &Arc<Self>) {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-        let Ok(targets) = self.targets().await else { return };
+        let Ok(targets) = self.targets().await else {
+            return;
+        };
         if !targets.iter().any(|t| t.enabled && t.auto_publish) {
             return;
         }
@@ -477,7 +555,9 @@ impl I18nService {
     }
 
     async fn publish_auto(&self) {
-        let Ok(targets) = self.targets().await else { return };
+        let Ok(targets) = self.targets().await else {
+            return;
+        };
         for t in targets.into_iter().filter(|t| t.enabled && t.auto_publish) {
             self.publish_target(t, &Actor::system()).await;
         }
@@ -520,7 +600,9 @@ fn encode_path(path: &str) -> String {
         .map(|seg| {
             seg.bytes()
                 .map(|b| match b {
-                    b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+                    b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                        (b as char).to_string()
+                    }
                     _ => format!("%{b:02X}"),
                 })
                 .collect::<String>()
@@ -538,18 +620,32 @@ pub(crate) fn azure_shared_key(
     content_type: &str,
     ms_headers: &[(&str, &str)],
 ) -> Result<String> {
-    let key = STANDARD.decode(key_b64.trim()).map_err(|_| CmsError::validation("the Azure account key is not valid base64"))?;
-    let mut headers: Vec<(String, &str)> = ms_headers.iter().map(|(k, v)| (k.to_ascii_lowercase(), *v)).collect();
+    let key = STANDARD
+        .decode(key_b64.trim())
+        .map_err(|_| CmsError::validation("the Azure account key is not valid base64"))?;
+    let mut headers: Vec<(String, &str)> = ms_headers
+        .iter()
+        .map(|(k, v)| (k.to_ascii_lowercase(), *v))
+        .collect();
     headers.sort();
     let canonical_headers: String = headers.iter().map(|(k, v)| format!("{k}:{v}\n")).collect();
-    let length = if content_length == 0 { String::new() } else { content_length.to_string() };
+    let length = if content_length == 0 {
+        String::new()
+    } else {
+        content_length.to_string()
+    };
     // VERB, Content-Encoding, Content-Language, Content-Length, Content-MD5,
     // Content-Type, Date, If-Modified-Since, If-Match, If-None-Match,
     // If-Unmodified-Since, Range, then headers and resource.
-    let to_sign = format!("PUT\n\n\n{length}\n\n{content_type}\n\n\n\n\n\n\n{canonical_headers}/{account}{url_path}");
+    let to_sign = format!(
+        "PUT\n\n\n{length}\n\n{content_type}\n\n\n\n\n\n\n{canonical_headers}/{account}{url_path}"
+    );
     let mut mac = <Hmac<Sha256>>::new_from_slice(&key).expect("HMAC accepts any key length");
     mac.update(to_sign.as_bytes());
-    Ok(format!("SharedKey {account}:{}", STANDARD.encode(mac.finalize().into_bytes())))
+    Ok(format!(
+        "SharedKey {account}:{}",
+        STANDARD.encode(mac.finalize().into_bytes())
+    ))
 }
 
 #[async_trait]
@@ -565,7 +661,9 @@ impl Uploader for AzureUploader {
             url.push('?');
             url.push_str(self.secret.trim().trim_start_matches('?'));
         }
-        let date = chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = chrono::Utc::now()
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
         let mut req = self
             .client
             .put(&url)
@@ -576,25 +674,41 @@ impl Uploader for AzureUploader {
         if self.auth == AzureAuth::SharedKey {
             // The canonical resource is the URL path, which for Azurite
             // already starts with the account name.
-            let path = reqwest::Url::parse(&url).map(|u| u.path().to_string()).unwrap_or(blob);
+            let path = reqwest::Url::parse(&url)
+                .map(|u| u.path().to_string())
+                .unwrap_or(blob);
             let auth = azure_shared_key(
                 &self.account,
                 &self.secret,
                 &path,
                 body.len(),
                 content_type,
-                &[("x-ms-blob-type", "BlockBlob"), ("x-ms-date", &date), ("x-ms-version", AZURE_VERSION)],
+                &[
+                    ("x-ms-blob-type", "BlockBlob"),
+                    ("x-ms-date", &date),
+                    ("x-ms-version", AZURE_VERSION),
+                ],
             )?;
             req = req.header("Authorization", auth);
         }
-        let res = req.body(body).send().await.map_err(|e| CmsError::Storage(format!("Azure: {e}")))?;
+        let res = req
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| CmsError::Storage(format!("Azure: {e}")))?;
         if res.status().is_success() {
             return Ok(());
         }
         let status = res.status();
         let text = res.text().await.unwrap_or_default();
-        let code = text.split("<Code>").nth(1).and_then(|s| s.split("</Code>").next()).unwrap_or_default();
-        Err(CmsError::Storage(format!("Azure answered {status} {code} for `{key}`")))
+        let code = text
+            .split("<Code>")
+            .nth(1)
+            .and_then(|s| s.split("</Code>").next())
+            .unwrap_or_default();
+        Err(CmsError::Storage(format!(
+            "Azure answered {status} {code} for `{key}`"
+        )))
     }
 }
 
@@ -611,15 +725,28 @@ mod tests {
             "/c/a%20b.json",
             2,
             "application/json",
-            &[("x-ms-version", "2021-08-06"), ("x-ms-date", "Mon, 01 Jan 2024 00:00:00 GMT"), ("x-ms-blob-type", "BlockBlob")],
+            &[
+                ("x-ms-version", "2021-08-06"),
+                ("x-ms-date", "Mon, 01 Jan 2024 00:00:00 GMT"),
+                ("x-ms-blob-type", "BlockBlob"),
+            ],
         )
         .unwrap();
         let to_sign = "PUT\n\n\n2\n\napplication/json\n\n\n\n\n\n\nx-ms-blob-type:BlockBlob\nx-ms-date:Mon, 01 Jan 2024 00:00:00 GMT\nx-ms-version:2021-08-06\n/myaccount/c/a%20b.json";
         let mut mac = <Hmac<Sha256>>::new_from_slice(b"key").unwrap();
         mac.update(to_sign.as_bytes());
-        assert_eq!(auth, format!("SharedKey myaccount:{}", STANDARD.encode(mac.finalize().into_bytes())));
+        assert_eq!(
+            auth,
+            format!(
+                "SharedKey myaccount:{}",
+                STANDARD.encode(mac.finalize().into_bytes())
+            )
+        );
         assert!(azure_shared_key("a", "!!", "/", 0, "", &[]).is_err());
-        assert_eq!(encode_path("fr.lproj/a b+c.strings"), "fr.lproj/a%20b%2Bc.strings");
+        assert_eq!(
+            encode_path("fr.lproj/a b+c.strings"),
+            "fr.lproj/a%20b%2Bc.strings"
+        );
     }
 
     #[test]

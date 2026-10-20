@@ -20,11 +20,16 @@ pub fn redact_secrets(fields: &[FieldDef], data: &mut Map<String, Value>, compon
             }
             FieldType::Component { component, .. } => {
                 if let Some(c) = components.get(component) {
-                    for_each_object(data.get_mut(&f.name), |o| redact_secrets(&c.fields, o, components));
+                    for_each_object(data.get_mut(&f.name), |o| {
+                        redact_secrets(&c.fields, o, components)
+                    });
                 }
             }
             FieldType::DynamicZone { .. } => for_each_object(data.get_mut(&f.name), |o| {
-                let name = o.get(COMPONENT_KEY).and_then(Value::as_str).map(String::from);
+                let name = o
+                    .get(COMPONENT_KEY)
+                    .and_then(Value::as_str)
+                    .map(String::from);
                 if let Some(c) = name.and_then(|n| components.get(&n)) {
                     redact_secrets(&c.fields, o, components);
                 }
@@ -50,7 +55,12 @@ mod tests {
     use crate::model::{Component, now};
 
     fn field(name: &str, field_type: FieldType) -> FieldDef {
-        FieldDef { name: name.into(), field_type, required: false, description: None }
+        FieldDef {
+            name: name.into(),
+            field_type,
+            required: false,
+            description: None,
+        }
     }
 
     #[test]
@@ -70,8 +80,19 @@ mod tests {
         let fields = vec![
             field("title", FieldType::text()),
             field("secret", pw()),
-            field("login", FieldType::Component { component: "Login".into(), repeatable: true }),
-            field("zone", FieldType::DynamicZone { components: vec!["Login".into()] }),
+            field(
+                "login",
+                FieldType::Component {
+                    component: "Login".into(),
+                    repeatable: true,
+                },
+            ),
+            field(
+                "zone",
+                FieldType::DynamicZone {
+                    components: vec!["Login".into()],
+                },
+            ),
         ];
         let mut data = json!({
             "title": "t", "secret": "$argon2",

@@ -1,5 +1,6 @@
 {
   "name": "tess-admin",
+  "version": "0.1.0",
   "description": "Tess admin UI (Vike + React + daisyUI).",
   "author": "Tess Dev Team",
   "homepage": "https://tessheadless.com",

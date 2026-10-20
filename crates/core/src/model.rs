@@ -12,8 +12,16 @@ use crate::access::ActorRef;
 /// System fields exposed on every entry. They are reserved and cannot be used
 /// as content field names, which lets backends store them inside the
 /// per-stage documents and strip them back out when loading.
-pub const SYSTEM_FIELDS: &[&str] =
-    &["id", "createdAt", "updatedAt", "publishedAt", "workflowStatus", "createdBy", "updatedBy", "history"];
+pub const SYSTEM_FIELDS: &[&str] = &[
+    "id",
+    "createdAt",
+    "updatedAt",
+    "publishedAt",
+    "workflowStatus",
+    "createdBy",
+    "updatedBy",
+    "history",
+];
 
 /// Number of history events kept per entry.
 pub const HISTORY_LIMIT: usize = 50;
@@ -25,7 +33,11 @@ pub const DEFAULT_PASSWORD_MIN_LENGTH: u32 = 8;
 
 /// The data type of a content field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum FieldType {
     /// Plain text, with optional length bounds and a format (regex the whole
     /// value must match). Models stored before TEXT replaced STRING/TEXT load
@@ -57,7 +69,9 @@ pub enum FieldType {
         #[serde(default = "default_password_min")]
         min_length: u32,
     },
-    Enum { values: Vec<String> },
+    Enum {
+        values: Vec<String>,
+    },
     /// Reference to entries of another (or the same) content type.
     Relation {
         target: String,
@@ -72,7 +86,9 @@ pub enum FieldType {
     },
     /// An ordered list of components, each one of the allowed `components`
     /// (stored with a `__component` discriminator). Not allowed in components.
-    DynamicZone { components: Vec<String> },
+    DynamicZone {
+        components: Vec<String>,
+    },
 }
 
 fn default_password_min() -> u32 {
@@ -82,7 +98,11 @@ fn default_password_min() -> u32 {
 impl FieldType {
     /// TEXT without bounds or format.
     pub fn text() -> Self {
-        FieldType::Text { min_length: None, max_length: None, pattern: None }
+        FieldType::Text {
+            min_length: None,
+            max_length: None,
+            pattern: None,
+        }
     }
 
     /// Whether values of this type can be compared with `<`, `>`, ... and sorted.
@@ -310,20 +330,38 @@ impl Entry {
     pub fn view(&self, stage: Stage) -> Option<Map<String, Value>> {
         let mut doc = self.data(stage)?.clone();
         doc.insert("id".into(), Value::String(self.id.to_string()));
-        doc.insert("createdAt".into(), Value::String(format_ts(self.created_at)));
-        doc.insert("updatedAt".into(), Value::String(format_ts(self.updated_at)));
+        doc.insert(
+            "createdAt".into(),
+            Value::String(format_ts(self.created_at)),
+        );
+        doc.insert(
+            "updatedAt".into(),
+            Value::String(format_ts(self.updated_at)),
+        );
         if let Some(ts) = self.published_at {
             doc.insert("publishedAt".into(), Value::String(format_ts(ts)));
         }
-        doc.insert("workflowStatus".into(), Value::String(self.status.as_str().into()));
+        doc.insert(
+            "workflowStatus".into(),
+            Value::String(self.status.as_str().into()),
+        );
         if let Some(by) = &self.created_by {
-            doc.insert("createdBy".into(), serde_json::to_value(by).unwrap_or_default());
+            doc.insert(
+                "createdBy".into(),
+                serde_json::to_value(by).unwrap_or_default(),
+            );
         }
         if let Some(by) = &self.updated_by {
-            doc.insert("updatedBy".into(), serde_json::to_value(by).unwrap_or_default());
+            doc.insert(
+                "updatedBy".into(),
+                serde_json::to_value(by).unwrap_or_default(),
+            );
         }
         if !self.history.is_empty() {
-            doc.insert("history".into(), serde_json::to_value(&self.history).unwrap_or_default());
+            doc.insert(
+                "history".into(),
+                serde_json::to_value(&self.history).unwrap_or_default(),
+            );
         }
         Some(doc)
     }
@@ -337,8 +375,15 @@ impl Entry {
         published_view: Option<Map<String, Value>>,
     ) -> Result<Entry, String> {
         let ts = |k: &str| draft_view.get(k).and_then(Value::as_str).and_then(parse_ts);
-        fn parse<T: serde::de::DeserializeOwned>(doc: &Map<String, Value>, k: &str) -> Result<Option<T>, String> {
-            doc.get(k).cloned().map(serde_json::from_value).transpose().map_err(|e| format!("`{k}`: {e}"))
+        fn parse<T: serde::de::DeserializeOwned>(
+            doc: &Map<String, Value>,
+            k: &str,
+        ) -> Result<Option<T>, String> {
+            doc.get(k)
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()
+                .map_err(|e| format!("`{k}`: {e}"))
         }
         Ok(Entry {
             id,
@@ -356,14 +401,18 @@ impl Entry {
     }
 
     pub(crate) fn record(&mut self, action: HistoryAction, by: ActorRef, comment: Option<String>) {
-        self.history.push(HistoryEvent { action, at: now(), by, comment });
+        self.history.push(HistoryEvent {
+            action,
+            at: now(),
+            by,
+            comment,
+        });
         if self.history.len() > HISTORY_LIMIT {
             let excess = self.history.len() - HISTORY_LIMIT;
             self.history.drain(..excess);
         }
     }
 }
-
 
 /// Removes system fields from a stored view, giving back the content data.
 pub fn strip_system_fields(mut doc: Map<String, Value>) -> Map<String, Value> {
@@ -380,7 +429,9 @@ pub fn format_ts(ts: DateTime<Utc>) -> String {
 }
 
 pub fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&Utc))
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|d| d.with_timezone(&Utc))
 }
 
 /// Current time truncated to the precision of [`format_ts`], so values

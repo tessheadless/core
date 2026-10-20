@@ -18,7 +18,10 @@ fn pretty(v: &Value) -> String {
 }
 
 pub(super) fn json_flat(messages: &[Message]) -> String {
-    let map: BTreeMap<&str, &str> = messages.iter().map(|m| (m.key.name.as_str(), m.text.as_str())).collect();
+    let map: BTreeMap<&str, &str> = messages
+        .iter()
+        .map(|m| (m.key.name.as_str(), m.text.as_str()))
+        .collect();
     pretty(&json!(map))
 }
 
@@ -39,7 +42,9 @@ fn insert_path(node: &mut Map<String, Value>, path: &str, value: Value) {
             node.insert(path.to_string(), value);
         }
         _ => {
-            let child = node.entry(head.to_string()).or_insert_with(|| Value::Object(Map::new()));
+            let child = node
+                .entry(head.to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
             insert_path(child.as_object_mut().expect("object"), rest, value);
         }
     }
@@ -64,8 +69,11 @@ pub(super) fn json_nested(messages: &[Message], i18next: bool) -> String {
         match parse_plural(&m.text).filter(|_| m.key.plural) {
             Some(p) => {
                 for (category, text) in p.forms {
-                    let text = to_double_braces(&text).replace('#', &format!("{{{{{}}}}}", p.variable));
-                    let suffix = category.strip_prefix('=').map_or(category.clone(), String::from);
+                    let text =
+                        to_double_braces(&text).replace('#', &format!("{{{{{}}}}}", p.variable));
+                    let suffix = category
+                        .strip_prefix('=')
+                        .map_or(category.clone(), String::from);
                     insert_path(&mut root, &format!("{}_{suffix}", m.key.name), json!(text));
                 }
             }
@@ -123,9 +131,17 @@ pub(super) fn xliff(
         let (src, tgt) = texts(k);
         let name = xml_escape(&k.name);
         let _ = writeln!(out, "      <trans-unit id=\"{name}\" resname=\"{name}\">");
-        let _ = writeln!(out, "        <source>{}</source>", xml_escape(src.as_deref().unwrap_or_default()));
+        let _ = writeln!(
+            out,
+            "        <source>{}</source>",
+            xml_escape(src.as_deref().unwrap_or_default())
+        );
         if let Some(t) = tgt {
-            let _ = writeln!(out, "        <target state=\"translated\">{}</target>", xml_escape(&t));
+            let _ = writeln!(
+                out,
+                "        <target state=\"translated\">{}</target>",
+                xml_escape(&t)
+            );
         }
         if let Some(d) = &k.description {
             let _ = writeln!(out, "        <note>{}</note>", xml_escape(d));
@@ -163,7 +179,12 @@ pub(super) fn po(messages: &[Message], lang: &str) -> String {
                 let _ = writeln!(out, "#. {line}");
             }
         }
-        let _ = writeln!(out, "msgid \"{}\"\nmsgstr \"{}\"", c_escape(&m.key.name), c_escape(&m.text));
+        let _ = writeln!(
+            out,
+            "msgid \"{}\"\nmsgstr \"{}\"",
+            c_escape(&m.key.name),
+            c_escape(&m.text)
+        );
     }
     out
 }
@@ -201,14 +222,28 @@ pub(super) fn properties(messages: &[Message]) -> String {
                 let _ = writeln!(out, "# {line}");
             }
         }
-        let _ = writeln!(out, "{}={}", properties_escape(&m.key.name, true), properties_escape(&m.text, false));
+        let _ = writeln!(
+            out,
+            "{}={}",
+            properties_escape(&m.key.name, true),
+            properties_escape(&m.text, false)
+        );
     }
     out
 }
 
 /// Android resource names only allow `[a-z0-9_]`; other characters become `_`.
 pub(crate) fn android_name(key: &str) -> String {
-    let mut s: String = key.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
+    let mut s: String = key
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
     if s.starts_with(|c: char| c.is_ascii_digit()) {
         s.insert(0, '_');
     }
@@ -246,14 +281,22 @@ pub(super) fn android(messages: &[Message]) -> String {
         match parse_plural(&m.text).filter(|_| m.key.plural) {
             Some(p) => {
                 let _ = writeln!(out, "    <plurals name=\"{name}\">");
-                for (category, text) in p.forms.iter().filter(|(c, _)| crate::icu::CATEGORIES.contains(&c.as_str())) {
+                for (category, text) in p
+                    .forms
+                    .iter()
+                    .filter(|(c, _)| crate::icu::CATEGORIES.contains(&c.as_str()))
+                {
                     let text = android_escape(text).replace('#', "%d");
                     let _ = writeln!(out, "        <item quantity=\"{category}\">{text}</item>");
                 }
                 out.push_str("    </plurals>\n");
             }
             None => {
-                let _ = writeln!(out, "    <string name=\"{name}\">{}</string>", android_escape(&m.text));
+                let _ = writeln!(
+                    out,
+                    "    <string name=\"{name}\">{}</string>",
+                    android_escape(&m.text)
+                );
             }
         }
     }
@@ -267,7 +310,12 @@ pub(super) fn apple(messages: &[Message]) -> String {
         if let Some(d) = &m.key.description {
             let _ = writeln!(out, "/* {} */", d.replace("*/", "* /"));
         }
-        let _ = writeln!(out, "\"{}\" = \"{}\";", c_escape(&m.key.name), c_escape(&m.text));
+        let _ = writeln!(
+            out,
+            "\"{}\" = \"{}\";",
+            c_escape(&m.key.name),
+            c_escape(&m.text)
+        );
     }
     out
 }

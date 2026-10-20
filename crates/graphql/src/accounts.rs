@@ -11,14 +11,15 @@ use async_graphql::dynamic::{
     Enum, Field, FieldFuture, FieldValue, InputObject, InputValue, Object, ResolverContext, TypeRef,
 };
 use async_graphql::{Name, Value as GqlValue};
+use serde_json::Value;
 use tess_auth::{ApiToken, AuthService, NewUser, Session, User, UserUpdate};
 use tess_core::model::format_ts;
 use tess_core::{CmsError, Role};
-use serde_json::Value;
 
 use crate::Principal;
 use crate::schema::{
-    GqlResult, TypeDef, admin_require, cms_err, codec, id_err, json_arg, opt_arg, principal, require_write,
+    GqlResult, TypeDef, admin_require, cms_err, codec, id_err, json_arg, opt_arg, principal,
+    require_write,
 };
 
 const USER_TYPE: &str = "User";
@@ -38,18 +39,27 @@ fn strings(xs: &[String]) -> GqlValue {
 fn parse_role(v: &Value) -> Result<Option<Role>, CmsError> {
     match v {
         Value::Null => Ok(None),
-        Value::String(s) => Role::parse(s).map(Some).ok_or_else(|| CmsError::validation(format!("unknown role `{s}`"))),
+        Value::String(s) => Role::parse(s)
+            .map(Some)
+            .ok_or_else(|| CmsError::validation(format!("unknown role `{s}`"))),
         _ => Err(CmsError::validation("invalid role")),
     }
 }
 
 fn parse_scope(v: &Value) -> Option<Vec<String>> {
-    v.as_array().map(|xs| xs.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+    v.as_array().map(|xs| {
+        xs.iter()
+            .filter_map(|x| x.as_str().map(String::from))
+            .collect()
+    })
 }
 
 fn user_id(ctx: &ResolverContext<'_>) -> GqlResult<uuid::Uuid> {
     let token = ctx.args.try_get("id")?.string()?;
-    codec(ctx)?.decode(token, Some(USER_TYPE)).map(|(_, id)| id).map_err(id_err)
+    codec(ctx)?
+        .decode(token, Some(USER_TYPE))
+        .map(|(_, id)| id)
+        .map_err(id_err)
 }
 
 fn types() -> Vec<TypeDef> {
@@ -66,19 +76,35 @@ fn types() -> Vec<TypeDef> {
         .field(Field::new("id", T::named_nn(T::ID), |ctx| {
             FieldFuture::new(async move {
                 let u = ctx.parent_value.try_downcast_ref::<User>()?;
-                Ok(Some(FieldValue::value(codec(&ctx)?.encode(USER_TYPE, u.id))))
+                Ok(Some(FieldValue::value(
+                    codec(&ctx)?.encode(USER_TYPE, u.id),
+                )))
             })
         }))
-        .field(user_field("email", T::named_nn(T::STRING), |u| Some(u.email.clone().into())))
-        .field(user_field("name", T::named_nn(T::STRING), |u| Some(u.name.clone().into())))
-        .field(user_field("role", T::named_nn("Role"), |u| Some(role_value(u.role))))
+        .field(user_field("email", T::named_nn(T::STRING), |u| {
+            Some(u.email.clone().into())
+        }))
+        .field(user_field("name", T::named_nn(T::STRING), |u| {
+            Some(u.name.clone().into())
+        }))
+        .field(user_field("role", T::named_nn("Role"), |u| {
+            Some(role_value(u.role))
+        }))
         .field(
-            user_field("scope", T::named_nn_list_nn(T::STRING), |u| Some(strings(&u.scope)))
-                .description("Content types a Contributor/Reviewer works on; empty means all."),
+            user_field("scope", T::named_nn_list_nn(T::STRING), |u| {
+                Some(strings(&u.scope))
+            })
+            .description("Content types a Contributor/Reviewer works on; empty means all."),
         )
-        .field(user_field("disabled", T::named_nn(T::BOOLEAN), |u| Some(u.disabled.into())))
-        .field(user_field("createdAt", T::named_nn("DateTime"), |u| Some(format_ts(u.created_at).into())))
-        .field(user_field("lastLoginAt", T::named("DateTime"), |u| u.last_login_at.map(|t| format_ts(t).into())));
+        .field(user_field("disabled", T::named_nn(T::BOOLEAN), |u| {
+            Some(u.disabled.into())
+        }))
+        .field(user_field("createdAt", T::named_nn("DateTime"), |u| {
+            Some(format_ts(u.created_at).into())
+        }))
+        .field(user_field("lastLoginAt", T::named("DateTime"), |u| {
+            u.last_login_at.map(|t| format_ts(t).into())
+        }));
 
     let session = Object::new("Session")
         .description("Send `token` as `Authorization: Bearer <token>`.")
@@ -110,13 +136,27 @@ fn types() -> Vec<TypeDef> {
         })
     };
     let api_token = Object::new("ApiToken")
-        .field(token_field("id", T::named_nn(T::STRING), |t| Some(t.id.clone().into())))
-        .field(token_field("name", T::named_nn(T::STRING), |t| Some(t.name.clone().into())))
-        .field(token_field("role", T::named_nn("Role"), |t| Some(role_value(t.role))))
-        .field(token_field("scope", T::named_nn_list_nn(T::STRING), |t| Some(strings(&t.scope))))
-        .field(token_field("createdBy", T::named_nn(T::STRING), |t| Some(t.created_by.clone().into())))
-        .field(token_field("createdAt", T::named_nn("DateTime"), |t| Some(format_ts(t.created_at).into())))
-        .field(token_field("expiresAt", T::named("DateTime"), |t| t.expires_at.map(|e| format_ts(e).into())));
+        .field(token_field("id", T::named_nn(T::STRING), |t| {
+            Some(t.id.clone().into())
+        }))
+        .field(token_field("name", T::named_nn(T::STRING), |t| {
+            Some(t.name.clone().into())
+        }))
+        .field(token_field("role", T::named_nn("Role"), |t| {
+            Some(role_value(t.role))
+        }))
+        .field(token_field("scope", T::named_nn_list_nn(T::STRING), |t| {
+            Some(strings(&t.scope))
+        }))
+        .field(token_field("createdBy", T::named_nn(T::STRING), |t| {
+            Some(t.created_by.clone().into())
+        }))
+        .field(token_field("createdAt", T::named_nn("DateTime"), |t| {
+            Some(format_ts(t.created_at).into())
+        }))
+        .field(token_field("expiresAt", T::named("DateTime"), |t| {
+            t.expires_at.map(|e| format_ts(e).into())
+        }));
 
     let created = Object::new("CreatedApiToken")
         .description("`token` is shown only once: store it in your secrets manager.")
@@ -167,11 +207,15 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
             Ok(Some(FieldValue::value(!has)))
         })
     })
-    .description("True until the first user exists: create the Owner with the bootstrap admin token.");
+    .description(
+        "True until the first user exists: create the Owner with the bootstrap admin token.",
+    );
 
     let me = Field::new("me", T::named(USER_TYPE), |ctx| {
         FieldFuture::new(async move {
-            let Principal::User(actor) = principal(&ctx) else { return Ok(None) };
+            let Principal::User(actor) = principal(&ctx) else {
+                return Ok(None);
+            };
             let Some(id) = actor.id else { return Ok(None) };
             let user = auth(&ctx)?.get_user(id).await.map_err(cms_err)?;
             Ok(Some(FieldValue::owned_any(user)))
@@ -183,7 +227,9 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
         FieldFuture::new(async move {
             let actor = admin_require(&ctx)?;
             let all = auth(&ctx)?.list_users(&actor).await.map_err(cms_err)?;
-            Ok(Some(FieldValue::list(all.into_iter().map(FieldValue::owned_any))))
+            Ok(Some(FieldValue::list(
+                all.into_iter().map(FieldValue::owned_any),
+            )))
         })
     });
 
@@ -191,7 +237,9 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
         FieldFuture::new(async move {
             let actor = admin_require(&ctx)?;
             let all = auth(&ctx)?.list_api_tokens(&actor).await.map_err(cms_err)?;
-            Ok(Some(FieldValue::list(all.into_iter().map(FieldValue::owned_any))))
+            Ok(Some(FieldValue::list(
+                all.into_iter().map(FieldValue::owned_any),
+            )))
         })
     });
 
@@ -211,7 +259,10 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
             let actor = require_write(&ctx)?;
             let current = ctx.args.try_get("currentPassword")?.string()?;
             let new = ctx.args.try_get("newPassword")?.string()?;
-            let session = auth(&ctx)?.change_password(&actor, current, new).await.map_err(cms_err)?;
+            let session = auth(&ctx)?
+                .change_password(&actor, current, new)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::owned_any(session)))
         })
     })
@@ -222,7 +273,10 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
     let sign_out = Field::new("signOutEverywhere", T::named_nn(T::BOOLEAN), |ctx| {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
-            auth(&ctx)?.sign_out_everywhere(&actor).await.map_err(cms_err)?;
+            auth(&ctx)?
+                .sign_out_everywhere(&actor)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::value(true)))
         })
     });
@@ -231,15 +285,26 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let input = json_arg(&ctx, "input")?;
-            let s = |k: &str| input.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+            let s = |k: &str| {
+                input
+                    .get(k)
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            };
             let new = NewUser {
                 email: s("email"),
                 name: s("name"),
-                role: parse_role(&input["role"]).map_err(cms_err)?.unwrap_or(Role::Member),
+                role: parse_role(&input["role"])
+                    .map_err(cms_err)?
+                    .unwrap_or(Role::Member),
                 scope: parse_scope(&input["scope"]).unwrap_or_default(),
                 password: s("password"),
             };
-            let user = auth(&ctx)?.create_user(&actor, new).await.map_err(cms_err)?;
+            let user = auth(&ctx)?
+                .create_user(&actor, new)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::owned_any(user)))
         })
     })
@@ -255,9 +320,15 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
                 role: parse_role(input.get("role").unwrap_or(&Value::Null)).map_err(cms_err)?,
                 scope: input.get("scope").and_then(parse_scope),
                 disabled: input.get("disabled").and_then(Value::as_bool),
-                password: input.get("password").and_then(Value::as_str).map(String::from),
+                password: input
+                    .get("password")
+                    .and_then(Value::as_str)
+                    .map(String::from),
             };
-            let user = auth(&ctx)?.update_user(&actor, id, update).await.map_err(cms_err)?;
+            let user = auth(&ctx)?
+                .update_user(&actor, id, update)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::owned_any(user)))
         })
     })
@@ -269,7 +340,9 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
             let actor = require_write(&ctx)?;
             let id = user_id(&ctx)?;
             auth(&ctx)?.delete_user(&actor, id).await.map_err(cms_err)?;
-            Ok(Some(FieldValue::value(ctx.args.try_get("id")?.string()?.to_string())))
+            Ok(Some(FieldValue::value(
+                ctx.args.try_get("id")?.string()?.to_string(),
+            )))
         })
     })
     .argument(InputValue::new("id", T::named_nn(T::ID)));
@@ -284,14 +357,18 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
                 Some(v) => {
                     let days = v.i64()?;
                     if !(1..=3650).contains(&days) {
-                        return Err(cms_err(CmsError::validation("expiresInDays must be between 1 and 3650")));
+                        return Err(cms_err(CmsError::validation(
+                            "expiresInDays must be between 1 and 3650",
+                        )));
                     }
                     Some(Duration::from_secs(days as u64 * 86_400))
                 }
                 None => None,
             };
-            let created =
-                auth(&ctx)?.create_api_token(&actor, name, role, scope, expires).await.map_err(cms_err)?;
+            let created = auth(&ctx)?
+                .create_api_token(&actor, name, role, scope, expires)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::owned_any(created)))
         })
     })
@@ -304,7 +381,10 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
         FieldFuture::new(async move {
             let actor = require_write(&ctx)?;
             let id = ctx.args.try_get("id")?.string()?.to_string();
-            auth(&ctx)?.revoke_api_token(&actor, &id).await.map_err(cms_err)?;
+            auth(&ctx)?
+                .revoke_api_token(&actor, &id)
+                .await
+                .map_err(cms_err)?;
             Ok(Some(FieldValue::value(id)))
         })
     })
@@ -312,7 +392,16 @@ pub(crate) fn definitions() -> (Vec<Field>, Vec<Field>, Vec<TypeDef>) {
 
     (
         vec![setup_required, me, users, api_tokens],
-        vec![login, change_password, sign_out, create_user, update_user, delete_user, create_token, revoke_token],
+        vec![
+            login,
+            change_password,
+            sign_out,
+            create_user,
+            update_user,
+            delete_user,
+            create_token,
+            revoke_token,
+        ],
         types(),
     )
 }

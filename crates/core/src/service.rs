@@ -11,11 +11,14 @@ use crate::access::Actor;
 use crate::error::{CmsError, Result};
 use crate::hooks::{EntryAction, EntryEvent, HookRegistry, SystemEvent};
 use crate::model::{
-    Component, ComponentDef, ContentType, ContentTypeDef, Entry, FieldType, HistoryAction, Stage, WorkflowStatus, now,
+    Component, ComponentDef, ContentType, ContentTypeDef, Entry, FieldType, HistoryAction, Stage,
+    WorkflowStatus, now,
 };
 use crate::query::{EntryQuery, Page};
 use crate::storage::Storage;
-use crate::validate::{Components, normalize_entry_data, relation_refs, validate_component, validate_content_type};
+use crate::validate::{
+    Components, normalize_entry_data, relation_refs, validate_component, validate_content_type,
+};
 
 /// Extra check run on the full set of content types before a schema change is
 /// saved. The GraphQL layer uses it to reject models whose generated type
@@ -36,7 +39,11 @@ pub struct Cms {
 
 impl Cms {
     pub fn new(storage: Arc<dyn Storage>) -> Self {
-        Cms { storage, guard: None, hooks: HookRegistry::new() }
+        Cms {
+            storage,
+            guard: None,
+            hooks: HookRegistry::new(),
+        }
     }
 
     pub fn with_schema_guard(mut self, guard: SchemaGuard) -> Self {
@@ -68,11 +75,18 @@ impl Cms {
             .ok_or_else(|| CmsError::NotFound(format!("content type `{api_id}`")))
     }
 
-    pub async fn create_content_type(&self, def: ContentTypeDef, actor: &Actor) -> Result<ContentType> {
+    pub async fn create_content_type(
+        &self,
+        def: ContentTypeDef,
+        actor: &Actor,
+    ) -> Result<ContentType> {
         actor.require_admin()?;
         let all = self.content_types().await?;
         if all.iter().any(|c| c.api_id == def.api_id) {
-            return Err(CmsError::Conflict(format!("content type `{}` already exists", def.api_id)));
+            return Err(CmsError::Conflict(format!(
+                "content type `{}` already exists",
+                def.api_id
+            )));
         }
         let components = self.components().await?;
         let plural_api_id = validate_content_type(&def, &all, &components)?;
@@ -94,14 +108,25 @@ impl Cms {
 
     /// Replaces the definition of a content type. Existing entries are kept;
     /// data of removed fields is ignored and dropped on the next write.
-    pub async fn update_content_type(&self, api_id: &str, def: ContentTypeDef, actor: &Actor) -> Result<ContentType> {
+    pub async fn update_content_type(
+        &self,
+        api_id: &str,
+        def: ContentTypeDef,
+        actor: &Actor,
+    ) -> Result<ContentType> {
         actor.require_admin()?;
         if def.api_id != api_id {
-            return Err(CmsError::validation("renaming a content type is not supported"));
+            return Err(CmsError::validation(
+                "renaming a content type is not supported",
+            ));
         }
         let existing = self.content_type(api_id).await?;
-        let others: Vec<_> =
-            self.content_types().await?.into_iter().filter(|c| c.api_id != api_id).collect();
+        let others: Vec<_> = self
+            .content_types()
+            .await?
+            .into_iter()
+            .filter(|c| c.api_id != api_id)
+            .collect();
         let components = self.components().await?;
         let plural_api_id = validate_content_type(&def, &others, &components)?;
         let ct = ContentType {
@@ -129,7 +154,8 @@ impl Cms {
         };
         for other in all.iter().filter(|c| c.api_id != api_id) {
             for field in &other.fields {
-                if matches!(&field.field_type, FieldType::Relation { target, .. } if target == api_id) {
+                if matches!(&field.field_type, FieldType::Relation { target, .. } if target == api_id)
+                {
                     return Err(CmsError::Conflict(format!(
                         "`{}.{}` still references `{api_id}`",
                         other.api_id, field.name
@@ -148,16 +174,28 @@ impl Cms {
             hook.after_content_type_change(ct, deleted).await;
         }
         let data = serde_json::to_value(ct).unwrap_or_default();
-        let event = SystemEvent::new(format!("contentType.{action}"), data, actor).for_type(&ct.api_id);
+        let event =
+            SystemEvent::new(format!("contentType.{action}"), data, actor).for_type(&ct.api_id);
         self.hooks.notify(&event).await;
     }
 
     async fn component_changed(&self, c: &Component, action: &str, actor: &Actor) {
         let data = serde_json::to_value(c).unwrap_or_default();
-        self.hooks.notify(&SystemEvent::new(format!("component.{action}"), data, actor)).await;
+        self.hooks
+            .notify(&SystemEvent::new(
+                format!("component.{action}"),
+                data,
+                actor,
+            ))
+            .await;
     }
 
-    fn check_guard(&self, mut others: Vec<ContentType>, candidate: &ContentType, components: &Components) -> Result<()> {
+    fn check_guard(
+        &self,
+        mut others: Vec<ContentType>,
+        candidate: &ContentType,
+        components: &Components,
+    ) -> Result<()> {
         if let Some(guard) = &self.guard {
             others.push(candidate.clone());
             others.sort_by(|a, b| a.api_id.cmp(&b.api_id));
@@ -183,19 +221,30 @@ impl Cms {
 
     async fn save_component(&self, c: &Component) -> Result<()> {
         let v = serde_json::to_value(c).map_err(CmsError::storage)?;
-        self.storage.put_setting(&format!("{COMPONENTS_PREFIX}{}", c.api_id), &v).await
+        self.storage
+            .put_setting(&format!("{COMPONENTS_PREFIX}{}", c.api_id), &v)
+            .await
     }
 
     pub async fn create_component(&self, def: ComponentDef, actor: &Actor) -> Result<Component> {
         actor.require_admin()?;
         let mut components = self.components().await?;
         if components.contains_key(&def.api_id) {
-            return Err(CmsError::Conflict(format!("component `{}` already exists", def.api_id)));
+            return Err(CmsError::Conflict(format!(
+                "component `{}` already exists",
+                def.api_id
+            )));
         }
         let types = self.content_types().await?;
         validate_component(&def, &components, &types)?;
         let ts = now();
-        let c = Component { api_id: def.api_id, description: def.description, fields: def.fields, created_at: ts, updated_at: ts };
+        let c = Component {
+            api_id: def.api_id,
+            description: def.description,
+            fields: def.fields,
+            created_at: ts,
+            updated_at: ts,
+        };
         components.insert(c.api_id.clone(), c.clone());
         if let Some(guard) = &self.guard {
             guard(&types, &components)?;
@@ -207,10 +256,17 @@ impl Cms {
 
     /// Replaces a component's definition; every content type using it changes
     /// accordingly. Existing data of removed fields is ignored.
-    pub async fn update_component(&self, api_id: &str, def: ComponentDef, actor: &Actor) -> Result<Component> {
+    pub async fn update_component(
+        &self,
+        api_id: &str,
+        def: ComponentDef,
+        actor: &Actor,
+    ) -> Result<Component> {
         actor.require_admin()?;
         if def.api_id != api_id {
-            return Err(CmsError::validation("renaming a component is not supported"));
+            return Err(CmsError::validation(
+                "renaming a component is not supported",
+            ));
         }
         let mut components = self.components().await?;
         let existing = components
@@ -255,11 +311,21 @@ impl Cms {
             .filter(|t| uses(&t.fields))
             .map(|t| t.api_id.clone())
             .collect();
-        users.extend(components.values().filter(|c| c.api_id != api_id && uses(&c.fields)).map(|c| c.api_id.clone()));
+        users.extend(
+            components
+                .values()
+                .filter(|c| c.api_id != api_id && uses(&c.fields))
+                .map(|c| c.api_id.clone()),
+        );
         if !users.is_empty() {
-            return Err(CmsError::Conflict(format!("`{api_id}` is still used by {}", users.join(", "))));
+            return Err(CmsError::Conflict(format!(
+                "`{api_id}` is still used by {}",
+                users.join(", ")
+            )));
         }
-        self.storage.delete_setting(&format!("{COMPONENTS_PREFIX}{api_id}")).await?;
+        self.storage
+            .delete_setting(&format!("{COMPONENTS_PREFIX}{api_id}"))
+            .await?;
         self.component_changed(&removed, "delete", actor).await;
         Ok(())
     }
@@ -287,21 +353,45 @@ impl Cms {
         let original = data.clone();
         let mut data = data;
         for hook in hooks {
-            hook.before_write(action, ct, &mut data, actor).await.map_err(|e| match e {
-                CmsError::Storage(m) => CmsError::Storage(format!("hook `{}`: {m}", hook.name())),
-                other => other,
-            })?;
+            hook.before_write(action, ct, &mut data, actor)
+                .await
+                .map_err(|e| match e {
+                    CmsError::Storage(m) => {
+                        CmsError::Storage(format!("hook `{}`: {m}", hook.name()))
+                    }
+                    other => other,
+                })?;
         }
-        if saves_data { normalize_entry_data(ct, data, components) } else { Ok(original) }
+        if saves_data {
+            normalize_entry_data(ct, data, components)
+        } else {
+            Ok(original)
+        }
     }
 
-    async fn emit(&self, action: EntryAction, entry: Option<Entry>, previous: Option<Entry>, actor: &Actor) {
+    async fn emit(
+        &self,
+        action: EntryAction,
+        entry: Option<Entry>,
+        previous: Option<Entry>,
+        actor: &Actor,
+    ) {
         let hooks = self.hooks.snapshot();
         if hooks.is_empty() {
             return;
         }
-        let content_type = entry.as_ref().or(previous.as_ref()).map(|e| e.content_type.clone()).unwrap_or_default();
-        let event = EntryEvent { action, content_type, entry, previous, actor: actor.reference() };
+        let content_type = entry
+            .as_ref()
+            .or(previous.as_ref())
+            .map(|e| e.content_type.clone())
+            .unwrap_or_default();
+        let event = EntryEvent {
+            action,
+            content_type,
+            entry,
+            previous,
+            actor: actor.reference(),
+        };
         for hook in hooks {
             hook.after_write(&event).await;
         }
@@ -309,7 +399,12 @@ impl Cms {
 
     // ---- entries -------------------------------------------------------
 
-    pub async fn get_entry(&self, content_type: &str, id: Uuid, stage: Stage) -> Result<Option<Entry>> {
+    pub async fn get_entry(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        stage: Stage,
+    ) -> Result<Option<Entry>> {
         let entry = self.storage.get_entry(content_type, id).await?;
         Ok(entry.filter(|e| e.data(stage).is_some()))
     }
@@ -319,19 +414,28 @@ impl Cms {
         self.storage.query_entries(content_type, query).await
     }
 
-    pub async fn create_entry(&self, content_type: &str, data: Map<String, Value>, actor: &Actor) -> Result<Entry> {
+    pub async fn create_entry(
+        &self,
+        content_type: &str,
+        data: Map<String, Value>,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let ct = self.content_type(content_type).await?;
         actor.require_edit(&ct)?;
         let components = self.components().await?;
         let mut data = prepare_input(&ct, data).await?;
         // UUID fields left empty are generated.
         for f in &ct.fields {
-            if matches!(f.field_type, FieldType::Uuid) && data.get(&f.name).is_none_or(Value::is_null) {
+            if matches!(f.field_type, FieldType::Uuid)
+                && data.get(&f.name).is_none_or(Value::is_null)
+            {
                 data.insert(f.name.clone(), Value::String(Uuid::new_v4().to_string()));
             }
         }
         let draft = normalize_entry_data(&ct, data, &components)?;
-        let draft = self.run_before_hooks(EntryAction::Create, &ct, draft, actor, &components).await?;
+        let draft = self
+            .run_before_hooks(EntryAction::Create, &ct, draft, actor, &components)
+            .await?;
         self.check_references(&ct, &draft, &components).await?;
         let ts = now();
         let mut entry = Entry {
@@ -349,7 +453,8 @@ impl Cms {
         };
         entry.record(HistoryAction::Created, actor.reference(), None);
         self.storage.put_entry(&entry).await?;
-        self.emit(EntryAction::Create, Some(entry.clone()), None, actor).await;
+        self.emit(EntryAction::Create, Some(entry.clone()), None, actor)
+            .await;
         Ok(entry)
     }
 
@@ -371,14 +476,23 @@ impl Cms {
         let mut merged = current_fields(&ct, &entry.draft);
         merged.extend(prepare_input(&ct, patch).await?);
         let draft = normalize_entry_data(&ct, merged, &components)?;
-        entry.draft = self.run_before_hooks(EntryAction::Update, &ct, draft, actor, &components).await?;
-        self.check_references(&ct, &entry.draft, &components).await?;
+        entry.draft = self
+            .run_before_hooks(EntryAction::Update, &ct, draft, actor, &components)
+            .await?;
+        self.check_references(&ct, &entry.draft, &components)
+            .await?;
         entry.updated_at = now();
         entry.updated_by = Some(actor.reference());
         entry.status = WorkflowStatus::Draft;
         entry.record(HistoryAction::Updated, actor.reference(), None);
         self.storage.put_entry(&entry).await?;
-        self.emit(EntryAction::Update, Some(entry.clone()), Some(previous), actor).await;
+        self.emit(
+            EntryAction::Update,
+            Some(entry.clone()),
+            Some(previous),
+            actor,
+        )
+        .await;
         Ok(entry)
     }
 
@@ -386,20 +500,41 @@ impl Cms {
         let ct = self.content_type(content_type).await?;
         let previous = self.require_entry(content_type, id).await?;
         actor.require_delete(&ct, &previous)?;
-        self.run_before_hooks(EntryAction::Delete, &ct, previous.draft.clone(), actor, &Components::new()).await?;
+        self.run_before_hooks(
+            EntryAction::Delete,
+            &ct,
+            previous.draft.clone(),
+            actor,
+            &Components::new(),
+        )
+        .await?;
         if !self.storage.delete_entry(content_type, id).await? {
             return Err(CmsError::NotFound(format!("{content_type} `{id}`")));
         }
-        self.emit(EntryAction::Delete, None, Some(previous), actor).await;
+        self.emit(EntryAction::Delete, None, Some(previous), actor)
+            .await;
         Ok(())
     }
 
     /// Copies the current draft to the published stage. On workflow types
     /// only Admins may do this directly; others go through review.
-    pub async fn publish_entry(&self, content_type: &str, id: Uuid, actor: &Actor) -> Result<Entry> {
+    pub async fn publish_entry(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let ct = self.content_type(content_type).await?;
         actor.require_publish(&ct)?;
-        self.publish(&ct, id, actor, EntryAction::Publish, HistoryAction::Published, None).await
+        self.publish(
+            &ct,
+            id,
+            actor,
+            EntryAction::Publish,
+            HistoryAction::Published,
+            None,
+        )
+        .await
     }
 
     async fn publish(
@@ -415,7 +550,9 @@ impl Cms {
         let previous = entry.clone();
         let components = self.components().await?;
         let data = normalize_entry_data(ct, current_fields(ct, &entry.draft), &components)?;
-        let data = self.run_before_hooks(action, ct, data, actor, &components).await?;
+        let data = self
+            .run_before_hooks(action, ct, data, actor, &components)
+            .await?;
         self.check_references(ct, &data, &components).await?;
         entry.draft = data.clone();
         entry.published = Some(data);
@@ -423,16 +560,35 @@ impl Cms {
         entry.status = WorkflowStatus::Published;
         entry.record(history, actor.reference(), comment);
         self.storage.put_entry(&entry).await?;
-        self.emit(action, Some(entry.clone()), Some(previous), actor).await;
+        self.emit(action, Some(entry.clone()), Some(previous), actor)
+            .await;
         Ok(entry)
     }
 
-    pub async fn unpublish_entry(&self, content_type: &str, id: Uuid, actor: &Actor) -> Result<Entry> {
+    pub async fn unpublish_entry(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let ct = self.content_type(content_type).await?;
-        actor.require_publish(&ct).or_else(|e| if ct.workflow { actor.require_review(&ct) } else { Err(e) })?;
+        actor.require_publish(&ct).or_else(|e| {
+            if ct.workflow {
+                actor.require_review(&ct)
+            } else {
+                Err(e)
+            }
+        })?;
         let mut entry = self.require_entry(content_type, id).await?;
         let previous = entry.clone();
-        self.run_before_hooks(EntryAction::Unpublish, &ct, entry.draft.clone(), actor, &Components::new()).await?;
+        self.run_before_hooks(
+            EntryAction::Unpublish,
+            &ct,
+            entry.draft.clone(),
+            actor,
+            &Components::new(),
+        )
+        .await?;
         entry.published = None;
         entry.published_at = None;
         if entry.status == WorkflowStatus::Published {
@@ -440,7 +596,13 @@ impl Cms {
         }
         entry.record(HistoryAction::Unpublished, actor.reference(), None);
         self.storage.put_entry(&entry).await?;
-        self.emit(EntryAction::Unpublish, Some(entry.clone()), Some(previous), actor).await;
+        self.emit(
+            EntryAction::Unpublish,
+            Some(entry.clone()),
+            Some(previous),
+            actor,
+        )
+        .await;
         Ok(entry)
     }
 
@@ -449,7 +611,9 @@ impl Cms {
     async fn workflow_entry(&self, content_type: &str, id: Uuid) -> Result<(ContentType, Entry)> {
         let ct = self.content_type(content_type).await?;
         if !ct.workflow {
-            return Err(CmsError::validation(format!("the review workflow is not enabled on `{content_type}`")));
+            return Err(CmsError::validation(format!(
+                "the review workflow is not enabled on `{content_type}`"
+            )));
         }
         let entry = self.require_entry(content_type, id).await?;
         Ok((ct, entry))
@@ -465,52 +629,101 @@ impl Cms {
         actor: &Actor,
     ) -> Result<Entry> {
         let previous = entry.clone();
-        self.run_before_hooks(action, ct, entry.draft.clone(), actor, &Components::new()).await?;
+        self.run_before_hooks(action, ct, entry.draft.clone(), actor, &Components::new())
+            .await?;
         entry.status = status;
         entry.record(history, actor.reference(), comment);
         self.storage.put_entry(&entry).await?;
-        self.emit(action, Some(entry.clone()), Some(previous), actor).await;
+        self.emit(action, Some(entry.clone()), Some(previous), actor)
+            .await;
         Ok(entry)
     }
 
     /// `DRAFT | CHANGES_REQUESTED → IN_REVIEW`.
-    pub async fn submit_for_review(&self, content_type: &str, id: Uuid, actor: &Actor) -> Result<Entry> {
+    pub async fn submit_for_review(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let (ct, entry) = self.workflow_entry(content_type, id).await?;
         actor.require_edit(&ct)?;
-        if !matches!(entry.status, WorkflowStatus::Draft | WorkflowStatus::ChangesRequested) {
+        if !matches!(
+            entry.status,
+            WorkflowStatus::Draft | WorkflowStatus::ChangesRequested
+        ) {
             return Err(CmsError::Conflict(format!(
                 "only drafts can be submitted (this entry is {})",
                 entry.status.as_str()
             )));
         }
         // Reviewers must not receive something that cannot be published.
-        normalize_entry_data(&ct, current_fields(&ct, &entry.draft), &self.components().await?)?;
+        normalize_entry_data(
+            &ct,
+            current_fields(&ct, &entry.draft),
+            &self.components().await?,
+        )?;
         let step = (EntryAction::Submit, HistoryAction::Submitted);
-        self.set_status(entry, &ct, WorkflowStatus::InReview, step, None, actor).await
+        self.set_status(entry, &ct, WorkflowStatus::InReview, step, None, actor)
+            .await
     }
 
     /// `IN_REVIEW → PUBLISHED`.
-    pub async fn approve(&self, content_type: &str, id: Uuid, comment: Option<String>, actor: &Actor) -> Result<Entry> {
+    pub async fn approve(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        comment: Option<String>,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let (ct, entry) = self.workflow_entry(content_type, id).await?;
         actor.require_review(&ct)?;
         if entry.status != WorkflowStatus::InReview {
-            return Err(CmsError::Conflict(format!("the entry is not in review (it is {})", entry.status.as_str())));
+            return Err(CmsError::Conflict(format!(
+                "the entry is not in review (it is {})",
+                entry.status.as_str()
+            )));
         }
         let comment = clean_comment(comment);
-        self.publish(&ct, id, actor, EntryAction::Approve, HistoryAction::Approved, comment).await
+        self.publish(
+            &ct,
+            id,
+            actor,
+            EntryAction::Approve,
+            HistoryAction::Approved,
+            comment,
+        )
+        .await
     }
 
     /// `IN_REVIEW → CHANGES_REQUESTED`, with a mandatory comment.
-    pub async fn request_changes(&self, content_type: &str, id: Uuid, comment: String, actor: &Actor) -> Result<Entry> {
+    pub async fn request_changes(
+        &self,
+        content_type: &str,
+        id: Uuid,
+        comment: String,
+        actor: &Actor,
+    ) -> Result<Entry> {
         let (ct, entry) = self.workflow_entry(content_type, id).await?;
         actor.require_review(&ct)?;
         if entry.status != WorkflowStatus::InReview {
-            return Err(CmsError::Conflict(format!("the entry is not in review (it is {})", entry.status.as_str())));
+            return Err(CmsError::Conflict(format!(
+                "the entry is not in review (it is {})",
+                entry.status.as_str()
+            )));
         }
         let comment = clean_comment(Some(comment))
             .ok_or_else(|| CmsError::validation("explain what needs to change in a comment"))?;
         let step = (EntryAction::RequestChanges, HistoryAction::ChangesRequested);
-        self.set_status(entry, &ct, WorkflowStatus::ChangesRequested, step, Some(comment), actor).await
+        self.set_status(
+            entry,
+            &ct,
+            WorkflowStatus::ChangesRequested,
+            step,
+            Some(comment),
+            actor,
+        )
+        .await
     }
 
     async fn require_entry(&self, content_type: &str, id: Uuid) -> Result<Entry> {
@@ -530,20 +743,39 @@ impl Cms {
         password: &str,
     ) -> Result<bool> {
         let ct = self.content_type(content_type).await?;
-        if !ct.field(field).is_some_and(|f| matches!(f.field_type, FieldType::Password { .. })) {
-            return Err(CmsError::validation(format!("`{content_type}.{field}` is not a password field")));
+        if !ct
+            .field(field)
+            .is_some_and(|f| matches!(f.field_type, FieldType::Password { .. }))
+        {
+            return Err(CmsError::validation(format!(
+                "`{content_type}.{field}` is not a password field"
+            )));
         }
-        let entry = self.get_entry(content_type, id, stage).await?.ok_or_else(|| CmsError::NotFound(format!("{content_type} `{id}`")))?;
-        let Some(hash) = entry.data(stage).and_then(|d| d.get(field)).and_then(Value::as_str) else {
+        let entry = self
+            .get_entry(content_type, id, stage)
+            .await?
+            .ok_or_else(|| CmsError::NotFound(format!("{content_type} `{id}`")))?;
+        let Some(hash) = entry
+            .data(stage)
+            .and_then(|d| d.get(field))
+            .and_then(Value::as_str)
+        else {
             return Ok(false);
         };
         crate::password::verify(password.to_string(), hash.to_string()).await
     }
 
-    async fn check_references(&self, ct: &ContentType, data: &Map<String, Value>, components: &Components) -> Result<()> {
+    async fn check_references(
+        &self,
+        ct: &ContentType,
+        data: &Map<String, Value>,
+        components: &Components,
+    ) -> Result<()> {
         for (target, id) in relation_refs(ct, data, components) {
             if self.storage.get_entry(&target, id).await?.is_none() {
-                return Err(CmsError::validation(format!("referenced {target} `{id}` does not exist")));
+                return Err(CmsError::validation(format!(
+                    "referenced {target} `{id}` does not exist"
+                )));
             }
         }
         Ok(())
@@ -552,19 +784,32 @@ impl Cms {
 
 /// Hashes the PASSWORD values of client input (after checking their length).
 /// Stored values are never passed here, so a client can't inject a hash.
-async fn prepare_input(ct: &ContentType, mut data: Map<String, Value>) -> Result<Map<String, Value>> {
+async fn prepare_input(
+    ct: &ContentType,
+    mut data: Map<String, Value>,
+) -> Result<Map<String, Value>> {
     for f in &ct.fields {
-        let FieldType::Password { min_length } = f.field_type else { continue };
-        let Some(value) = data.get(&f.name).filter(|v| !v.is_null()) else { continue };
+        let FieldType::Password { min_length } = f.field_type else {
+            continue;
+        };
+        let Some(value) = data.get(&f.name).filter(|v| !v.is_null()) else {
+            continue;
+        };
         let plain = value
             .as_str()
             .ok_or_else(|| CmsError::validation(format!("field `{}` expects a string", f.name)))?;
         let len = plain.chars().count();
         if len < min_length as usize {
-            return Err(CmsError::validation(format!("field `{}` needs at least {min_length} characters", f.name)));
+            return Err(CmsError::validation(format!(
+                "field `{}` needs at least {min_length} characters",
+                f.name
+            )));
         }
         if plain.len() > 1024 {
-            return Err(CmsError::validation(format!("field `{}` is too long", f.name)));
+            return Err(CmsError::validation(format!(
+                "field `{}` is too long",
+                f.name
+            )));
         }
         let hashed = crate::password::hash(plain.to_string()).await?;
         data.insert(f.name.clone(), Value::String(hashed));
@@ -596,7 +841,12 @@ mod tests {
     use crate::model::FieldDef;
 
     fn user(name: &str, role: Role, scope: &[&str]) -> Actor {
-        Actor { id: Some(Uuid::new_v4()), name: name.into(), role, scope: scope.iter().map(|s| s.to_string()).collect() }
+        Actor {
+            id: Some(Uuid::new_v4()),
+            name: name.into(),
+            role,
+            scope: scope.iter().map(|s| s.to_string()).collect(),
+        }
     }
 
     fn data(title: &str) -> Map<String, Value> {
@@ -610,16 +860,26 @@ mod tests {
                 api_id: api_id.into(),
                 plural_api_id: None,
                 description: None,
-                fields: vec![FieldDef { name: "title".into(), field_type: FieldType::text(), required: true, description: None }],
+                fields: vec![FieldDef {
+                    name: "title".into(),
+                    field_type: FieldType::text(),
+                    required: true,
+                    description: None,
+                }],
                 workflow,
             };
-            cms.create_content_type(def, &Actor::system()).await.unwrap();
+            cms.create_content_type(def, &Actor::system())
+                .await
+                .unwrap();
         }
         cms
     }
 
     fn forbidden<T: std::fmt::Debug>(r: Result<T>) {
-        assert!(matches!(r, Err(CmsError::Forbidden(_))), "expected Forbidden, got {r:?}");
+        assert!(
+            matches!(r, Err(CmsError::Forbidden(_))),
+            "expected Forbidden, got {r:?}"
+        );
     }
 
     #[tokio::test]
@@ -630,9 +890,15 @@ mod tests {
         let reviewer = user("R", Role::Reviewer, &[]);
         let member = user("M", Role::Member, &[]);
 
-        let note = cms.create_entry("Note", data("a"), &contributor).await.unwrap();
+        let note = cms
+            .create_entry("Note", data("a"), &contributor)
+            .await
+            .unwrap();
         assert_eq!(note.created_by.as_ref().unwrap().name, "C");
-        let published = cms.publish_entry("Note", note.id, &contributor).await.unwrap();
+        let published = cms
+            .publish_entry("Note", note.id, &contributor)
+            .await
+            .unwrap();
         assert_eq!(published.status, WorkflowStatus::Published);
 
         forbidden(cms.create_entry("Note", data("x"), &scoped).await); // out of scope
@@ -640,14 +906,38 @@ mod tests {
         forbidden(cms.create_entry("Note", data("x"), &member).await);
         forbidden(cms.publish_entry("Note", note.id, &reviewer).await);
         forbidden(cms.delete_entry("Note", note.id, &contributor).await); // published: admins only
-        forbidden(cms.create_content_type(ContentTypeDef { workflow: false, api_id: "X".into(), plural_api_id: None, description: None, fields: vec![] }, &contributor).await);
+        forbidden(
+            cms.create_content_type(
+                ContentTypeDef {
+                    workflow: false,
+                    api_id: "X".into(),
+                    plural_api_id: None,
+                    description: None,
+                    fields: vec![],
+                },
+                &contributor,
+            )
+            .await,
+        );
 
-        let draft = cms.create_entry("Note", data("b"), &contributor).await.unwrap();
-        cms.delete_entry("Note", draft.id, &contributor).await.unwrap(); // never published: ok
-        cms.delete_entry("Note", note.id, &user("A", Role::Admin, &[])).await.unwrap();
+        let draft = cms
+            .create_entry("Note", data("b"), &contributor)
+            .await
+            .unwrap();
+        cms.delete_entry("Note", draft.id, &contributor)
+            .await
+            .unwrap(); // never published: ok
+        cms.delete_entry("Note", note.id, &user("A", Role::Admin, &[]))
+            .await
+            .unwrap();
 
-        let r = cms.submit_for_review("Note", published.id, &contributor).await;
-        assert!(matches!(r, Err(CmsError::Validation(_)) | Err(CmsError::NotFound(_))), "{r:?}");
+        let r = cms
+            .submit_for_review("Note", published.id, &contributor)
+            .await;
+        assert!(
+            matches!(r, Err(CmsError::Validation(_)) | Err(CmsError::NotFound(_))),
+            "{r:?}"
+        );
     }
 
     #[tokio::test]
@@ -658,39 +948,86 @@ mod tests {
         let other_reviewer = user("O", Role::Reviewer, &["Note"]);
         let admin = user("A", Role::Admin, &[]);
 
-        let page = cms.create_entry("Page", data("v1"), &contributor).await.unwrap();
+        let page = cms
+            .create_entry("Page", data("v1"), &contributor)
+            .await
+            .unwrap();
         forbidden(cms.publish_entry("Page", page.id, &contributor).await);
         let r = cms.approve("Page", page.id, None, &reviewer).await;
-        assert!(matches!(r, Err(CmsError::Conflict(_))), "not in review yet: {r:?}");
+        assert!(
+            matches!(r, Err(CmsError::Conflict(_))),
+            "not in review yet: {r:?}"
+        );
 
-        let e = cms.submit_for_review("Page", page.id, &contributor).await.unwrap();
+        let e = cms
+            .submit_for_review("Page", page.id, &contributor)
+            .await
+            .unwrap();
         assert_eq!(e.status, WorkflowStatus::InReview);
         forbidden(cms.approve("Page", page.id, None, &other_reviewer).await); // out of scope
         forbidden(cms.approve("Page", page.id, None, &contributor).await);
-        let r = cms.request_changes("Page", page.id, "  ".into(), &reviewer).await;
-        assert!(matches!(r, Err(CmsError::Validation(_))), "comment required: {r:?}");
-        let e = cms.request_changes("Page", page.id, "Fix the title".into(), &reviewer).await.unwrap();
+        let r = cms
+            .request_changes("Page", page.id, "  ".into(), &reviewer)
+            .await;
+        assert!(
+            matches!(r, Err(CmsError::Validation(_))),
+            "comment required: {r:?}"
+        );
+        let e = cms
+            .request_changes("Page", page.id, "Fix the title".into(), &reviewer)
+            .await
+            .unwrap();
         assert_eq!(e.status, WorkflowStatus::ChangesRequested);
-        assert_eq!(e.history.last().unwrap().comment.as_deref(), Some("Fix the title"));
+        assert_eq!(
+            e.history.last().unwrap().comment.as_deref(),
+            Some("Fix the title")
+        );
 
-        cms.update_entry("Page", page.id, data("v2"), &contributor).await.unwrap();
-        cms.submit_for_review("Page", page.id, &contributor).await.unwrap();
+        cms.update_entry("Page", page.id, data("v2"), &contributor)
+            .await
+            .unwrap();
+        cms.submit_for_review("Page", page.id, &contributor)
+            .await
+            .unwrap();
         // Editing during review sends it back to draft.
-        let e = cms.update_entry("Page", page.id, data("v3"), &contributor).await.unwrap();
+        let e = cms
+            .update_entry("Page", page.id, data("v3"), &contributor)
+            .await
+            .unwrap();
         assert_eq!(e.status, WorkflowStatus::Draft);
-        cms.submit_for_review("Page", page.id, &contributor).await.unwrap();
+        cms.submit_for_review("Page", page.id, &contributor)
+            .await
+            .unwrap();
         let r = cms.submit_for_review("Page", page.id, &contributor).await;
         assert!(matches!(r, Err(CmsError::Conflict(_))), "{r:?}");
 
-        let e = cms.approve("Page", page.id, Some("Looks good".into()), &reviewer).await.unwrap();
+        let e = cms
+            .approve("Page", page.id, Some("Looks good".into()), &reviewer)
+            .await
+            .unwrap();
         assert_eq!(e.status, WorkflowStatus::Published);
         assert_eq!(e.published.as_ref().unwrap()["title"], "v3");
         let actions: Vec<_> = e.history.iter().map(|h| h.action).collect();
         use HistoryAction::*;
-        assert_eq!(actions, vec![Created, Submitted, ChangesRequested, Updated, Submitted, Updated, Submitted, Approved]);
+        assert_eq!(
+            actions,
+            vec![
+                Created,
+                Submitted,
+                ChangesRequested,
+                Updated,
+                Submitted,
+                Updated,
+                Submitted,
+                Approved
+            ]
+        );
 
         // Admins can bypass review; reviewers may unpublish workflow types.
-        let p2 = cms.create_entry("Page", data("direct"), &admin).await.unwrap();
+        let p2 = cms
+            .create_entry("Page", data("direct"), &admin)
+            .await
+            .unwrap();
         cms.publish_entry("Page", p2.id, &admin).await.unwrap();
         cms.unpublish_entry("Page", p2.id, &reviewer).await.unwrap();
         forbidden(cms.unpublish_entry("Page", page.id, &contributor).await);
@@ -706,7 +1043,12 @@ mod field_type_tests {
     use crate::model::FieldDef;
 
     fn f(name: &str, field_type: FieldType) -> FieldDef {
-        FieldDef { name: name.into(), field_type, required: false, description: None }
+        FieldDef {
+            name: name.into(),
+            field_type,
+            required: false,
+            description: None,
+        }
     }
 
     fn obj(v: Value) -> Map<String, Value> {
@@ -715,7 +1057,9 @@ mod field_type_tests {
 
     fn invalid<T: std::fmt::Debug>(r: Result<T>, needle: &str) {
         match r {
-            Err(CmsError::Validation(m)) | Err(CmsError::Conflict(m)) => assert!(m.contains(needle), "{m}"),
+            Err(CmsError::Validation(m)) | Err(CmsError::Conflict(m)) => {
+                assert!(m.contains(needle), "{m}")
+            }
             other => panic!("expected an error containing {needle:?}, got {other:?}"),
         }
     }
@@ -728,8 +1072,25 @@ mod field_type_tests {
                 api_id: "Link".into(),
                 description: None,
                 fields: vec![
-                    FieldDef { required: true, ..f("label", FieldType::Text { min_length: None, max_length: Some(20), pattern: None }) },
-                    f("url", FieldType::Text { min_length: None, max_length: None, pattern: Some(r"https://\S+".into()) }),
+                    FieldDef {
+                        required: true,
+                        ..f(
+                            "label",
+                            FieldType::Text {
+                                min_length: None,
+                                max_length: Some(20),
+                                pattern: None,
+                            },
+                        )
+                    },
+                    f(
+                        "url",
+                        FieldType::Text {
+                            min_length: None,
+                            max_length: None,
+                            pattern: Some(r"https://\S+".into()),
+                        },
+                    ),
                 ],
             },
             &sys,
@@ -740,14 +1101,29 @@ mod field_type_tests {
             ComponentDef {
                 api_id: "Hero".into(),
                 description: None,
-                fields: vec![f("title", FieldType::text()), f("cta", FieldType::Component { component: "Link".into(), repeatable: false })],
+                fields: vec![
+                    f("title", FieldType::text()),
+                    f(
+                        "cta",
+                        FieldType::Component {
+                            component: "Link".into(),
+                            repeatable: false,
+                        },
+                    ),
+                ],
             },
             &sys,
         )
         .await
         .unwrap();
         cms.create_content_type(
-            ContentTypeDef { api_id: "Page".into(), plural_api_id: None, description: None, fields, workflow: false },
+            ContentTypeDef {
+                api_id: "Page".into(),
+                plural_api_id: None,
+                description: None,
+                fields,
+                workflow: false,
+            },
             &sys,
         )
         .await
@@ -758,7 +1134,14 @@ mod field_type_tests {
     #[tokio::test]
     async fn text_markdown_date_uuid() {
         let cms = cms_with(vec![
-            f("email", FieldType::Text { min_length: Some(6), max_length: Some(80), pattern: Some(r"[^@\s]+@[^@\s]+\.[a-z]{2,}".into()) }),
+            f(
+                "email",
+                FieldType::Text {
+                    min_length: Some(6),
+                    max_length: Some(80),
+                    pattern: Some(r"[^@\s]+@[^@\s]+\.[a-z]{2,}".into()),
+                },
+            ),
             f("body", FieldType::Markdown),
             f("day", FieldType::Date),
             f("code", FieldType::Uuid),
@@ -770,41 +1153,111 @@ mod field_type_tests {
             .await
             .unwrap();
         assert_eq!(e.draft["day"], "2026-10-18");
-        assert!(Uuid::parse_str(e.draft["code"].as_str().unwrap()).is_ok(), "uuid generated");
-        invalid(cms.create_entry("Page", obj(json!({"email": "not an email"})), &sys).await, "format");
-        invalid(cms.create_entry("Page", obj(json!({"email": "a@b.c"})), &sys).await, "at least 6");
-        invalid(cms.create_entry("Page", obj(json!({"body": "<div>html</div>"})), &sys).await, "contains HTML");
-        invalid(cms.create_entry("Page", obj(json!({"day": "2026-02-30"})), &sys).await, "a date");
-        invalid(cms.create_entry("Page", obj(json!({"code": "nope"})), &sys).await, "a UUID");
+        assert!(
+            Uuid::parse_str(e.draft["code"].as_str().unwrap()).is_ok(),
+            "uuid generated"
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"email": "not an email"})), &sys)
+                .await,
+            "format",
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"email": "a@b.c"})), &sys)
+                .await,
+            "at least 6",
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"body": "<div>html</div>"})), &sys)
+                .await,
+            "contains HTML",
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"day": "2026-02-30"})), &sys)
+                .await,
+            "a date",
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"code": "nope"})), &sys)
+                .await,
+            "a UUID",
+        );
         let given = "6F9619FF-8B86-D011-B42D-00CF4FC964FF";
-        let e = cms.create_entry("Page", obj(json!({"code": given})), &sys).await.unwrap();
+        let e = cms
+            .create_entry("Page", obj(json!({"code": given})), &sys)
+            .await
+            .unwrap();
         assert_eq!(e.draft["code"], given.to_lowercase());
     }
 
     #[tokio::test]
     async fn passwords_are_hashed_and_verifiable() {
-        let cms = cms_with(vec![f("title", FieldType::text()), f("secret", FieldType::Password { min_length: 8 })]).await;
+        let cms = cms_with(vec![
+            f("title", FieldType::text()),
+            f("secret", FieldType::Password { min_length: 8 }),
+        ])
+        .await;
         let sys = Actor::system();
-        invalid(cms.create_entry("Page", obj(json!({"secret": "short"})), &sys).await, "at least 8");
-        let e = cms.create_entry("Page", obj(json!({"title": "x", "secret": "correct horse"})), &sys).await.unwrap();
+        invalid(
+            cms.create_entry("Page", obj(json!({"secret": "short"})), &sys)
+                .await,
+            "at least 8",
+        );
+        let e = cms
+            .create_entry(
+                "Page",
+                obj(json!({"title": "x", "secret": "correct horse"})),
+                &sys,
+            )
+            .await
+            .unwrap();
         let stored = e.draft["secret"].as_str().unwrap();
         assert!(stored.starts_with("$argon2id$") && !stored.contains("correct horse"));
-        assert!(cms.verify_password("Page", e.id, "secret", Stage::Draft, "correct horse").await.unwrap());
-        assert!(!cms.verify_password("Page", e.id, "secret", Stage::Draft, "wrong").await.unwrap());
+        assert!(
+            cms.verify_password("Page", e.id, "secret", Stage::Draft, "correct horse")
+                .await
+                .unwrap()
+        );
+        assert!(
+            !cms.verify_password("Page", e.id, "secret", Stage::Draft, "wrong")
+                .await
+                .unwrap()
+        );
         // Updating other fields keeps the hash; sending a "hash" re-hashes it.
-        let e2 = cms.update_entry("Page", e.id, obj(json!({"title": "y"})), &sys).await.unwrap();
+        let e2 = cms
+            .update_entry("Page", e.id, obj(json!({"title": "y"})), &sys)
+            .await
+            .unwrap();
         assert_eq!(e2.draft["secret"], e.draft["secret"]);
-        let e3 = cms.update_entry("Page", e.id, obj(json!({"secret": stored})), &sys).await.unwrap();
+        let e3 = cms
+            .update_entry("Page", e.id, obj(json!({"secret": stored})), &sys)
+            .await
+            .unwrap();
         assert_ne!(e3.draft["secret"], e.draft["secret"]);
-        assert!(cms.verify_password("Page", e.id, "secret", Stage::Draft, stored).await.unwrap());
+        assert!(
+            cms.verify_password("Page", e.id, "secret", Stage::Draft, stored)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
     async fn components_and_dynamic_zones() {
         let cms = cms_with(vec![
             f("title", FieldType::text()),
-            f("links", FieldType::Component { component: "Link".into(), repeatable: true }),
-            f("blocks", FieldType::DynamicZone { components: vec!["Hero".into(), "Link".into()] }),
+            f(
+                "links",
+                FieldType::Component {
+                    component: "Link".into(),
+                    repeatable: true,
+                },
+            ),
+            f(
+                "blocks",
+                FieldType::DynamicZone {
+                    components: vec!["Hero".into(), "Link".into()],
+                },
+            ),
         ])
         .await;
         let sys = Actor::system();
@@ -825,10 +1278,38 @@ mod field_type_tests {
         assert_eq!(e.draft["blocks"][0]["cta"]["label"], "Start");
         assert_eq!(e.draft["blocks"][1]["__component"], "Link");
         // Nested validation, with paths in messages.
-        invalid(cms.create_entry("Page", obj(json!({"links": [{"url": "https://x.y"}]})), &sys).await, "links[0].label");
-        invalid(cms.create_entry("Page", obj(json!({"links": [{"label": "x", "colour": 1}]})), &sys).await, "unknown field `links[0].colour`");
-        invalid(cms.create_entry("Page", obj(json!({"blocks": [{"title": "no type"}]})), &sys).await, "__component");
-        invalid(cms.create_entry("Page", obj(json!({"blocks": [{"__component": "Nope"}]})), &sys).await, "not allowed");
+        invalid(
+            cms.create_entry(
+                "Page",
+                obj(json!({"links": [{"url": "https://x.y"}]})),
+                &sys,
+            )
+            .await,
+            "links[0].label",
+        );
+        invalid(
+            cms.create_entry(
+                "Page",
+                obj(json!({"links": [{"label": "x", "colour": 1}]})),
+                &sys,
+            )
+            .await,
+            "unknown field `links[0].colour`",
+        );
+        invalid(
+            cms.create_entry("Page", obj(json!({"blocks": [{"title": "no type"}]})), &sys)
+                .await,
+            "__component",
+        );
+        invalid(
+            cms.create_entry(
+                "Page",
+                obj(json!({"blocks": [{"__component": "Nope"}]})),
+                &sys,
+            )
+            .await,
+            "not allowed",
+        );
         invalid(
             cms.create_entry("Page", obj(json!({"blocks": [{"__component": "Hero", "cta": {"label": "x", "url": "ftp://x"}}]})), &sys).await,
             "blocks[0].cta.url",
@@ -838,24 +1319,80 @@ mod field_type_tests {
         let link_with_hero = ComponentDef {
             api_id: "Link".into(),
             description: None,
-            fields: vec![f("label", FieldType::text()), f("hero", FieldType::Component { component: "Hero".into(), repeatable: false })],
+            fields: vec![
+                f("label", FieldType::text()),
+                f(
+                    "hero",
+                    FieldType::Component {
+                        component: "Hero".into(),
+                        repeatable: false,
+                    },
+                ),
+            ],
         };
-        invalid(cms.update_component("Link", link_with_hero, &sys).await, "cannot contain themselves");
-        let dz = ComponentDef { api_id: "Bad".into(), description: None, fields: vec![f("z", FieldType::DynamicZone { components: vec!["Link".into()] })] };
-        invalid(cms.create_component(dz, &sys).await, "dynamic zones are not allowed");
-        let pw = ComponentDef { api_id: "Bad".into(), description: None, fields: vec![f("p", FieldType::Password { min_length: 8 })] };
-        invalid(cms.create_component(pw, &sys).await, "passwords are only allowed");
-        invalid(cms.delete_component("Link", &sys).await, "still used by Page, Hero");
-        let clash = ComponentDef { api_id: "Page".into(), description: None, fields: vec![f("x", FieldType::text())] };
-        invalid(cms.create_component(clash, &sys).await, "already the name of a content type");
-        let contributor = Actor { id: None, name: "C".into(), role: crate::Role::Contributor, scope: vec![] };
-        let tag = ComponentDef { api_id: "Tag".into(), description: None, fields: vec![f("x", FieldType::text())] };
-        assert!(matches!(cms.create_component(tag, &contributor).await, Err(CmsError::Forbidden(_))));
+        invalid(
+            cms.update_component("Link", link_with_hero, &sys).await,
+            "cannot contain themselves",
+        );
+        let dz = ComponentDef {
+            api_id: "Bad".into(),
+            description: None,
+            fields: vec![f(
+                "z",
+                FieldType::DynamicZone {
+                    components: vec!["Link".into()],
+                },
+            )],
+        };
+        invalid(
+            cms.create_component(dz, &sys).await,
+            "dynamic zones are not allowed",
+        );
+        let pw = ComponentDef {
+            api_id: "Bad".into(),
+            description: None,
+            fields: vec![f("p", FieldType::Password { min_length: 8 })],
+        };
+        invalid(
+            cms.create_component(pw, &sys).await,
+            "passwords are only allowed",
+        );
+        invalid(
+            cms.delete_component("Link", &sys).await,
+            "still used by Page, Hero",
+        );
+        let clash = ComponentDef {
+            api_id: "Page".into(),
+            description: None,
+            fields: vec![f("x", FieldType::text())],
+        };
+        invalid(
+            cms.create_component(clash, &sys).await,
+            "already the name of a content type",
+        );
+        let contributor = Actor {
+            id: None,
+            name: "C".into(),
+            role: crate::Role::Contributor,
+            scope: vec![],
+        };
+        let tag = ComponentDef {
+            api_id: "Tag".into(),
+            description: None,
+            fields: vec![f("x", FieldType::text())],
+        };
+        assert!(matches!(
+            cms.create_component(tag, &contributor).await,
+            Err(CmsError::Forbidden(_))
+        ));
     }
 
     #[test]
     fn legacy_string_and_text_load_as_unbounded_text() {
-        for legacy in [r#"{"name":"a","type":"string"}"#, r#"{"name":"a","type":"text","required":true}"#] {
+        for legacy in [
+            r#"{"name":"a","type":"string"}"#,
+            r#"{"name":"a","type":"text","required":true}"#,
+        ] {
             let f: FieldDef = serde_json::from_str(legacy).unwrap();
             assert_eq!(f.field_type, FieldType::text());
         }

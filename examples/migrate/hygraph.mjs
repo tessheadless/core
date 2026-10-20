@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+// SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+// Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
 // Copies assets and entries from Hygraph to Tess (models must exist in Tess).
 //
 //   HYGRAPH_URL=https://<region>.cdn.hygraph.com/content/<project>/master HYGRAPH_TOKEN=… \

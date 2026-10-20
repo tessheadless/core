@@ -23,10 +23,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use tess_core::model::now;
-use tess_core::{Actor, CmsError, Result, Role, Storage};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tess_core::model::now;
+use tess_core::{Actor, CmsError, Result, Role, Storage};
 use uuid::Uuid;
 
 pub use token::SessionKey;
@@ -93,7 +93,12 @@ impl From<&UserRecord> for User {
 
 impl UserRecord {
     fn actor(&self) -> Actor {
-        Actor { id: Some(self.id), name: self.name.clone(), role: self.role, scope: self.scope.clone() }
+        Actor {
+            id: Some(self.id),
+            name: self.name.clone(),
+            role: self.role,
+            scope: self.scope.clone(),
+        }
     }
 }
 
@@ -157,15 +162,24 @@ fn normalize_email(email: &str) -> Result<String> {
     let email = email.trim().to_lowercase();
     let valid = email.len() <= 254
         && email.split_once('@').is_some_and(|(local, domain)| {
-            !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+            !local.is_empty()
+                && domain.contains('.')
+                && !domain.starts_with('.')
+                && !domain.ends_with('.')
         })
         && !email.chars().any(|c| c.is_whitespace() || c == '/');
-    if valid { Ok(email) } else { Err(CmsError::validation("invalid email address")) }
+    if valid {
+        Ok(email)
+    } else {
+        Err(CmsError::validation("invalid email address"))
+    }
 }
 
 fn check_password(password: &str) -> Result<()> {
     if password.chars().count() < MIN_PASSWORD {
-        return Err(CmsError::validation(format!("passwords need at least {MIN_PASSWORD} characters")));
+        return Err(CmsError::validation(format!(
+            "passwords need at least {MIN_PASSWORD} characters"
+        )));
     }
     if password.len() > 1024 {
         return Err(CmsError::validation("password too long"));
@@ -183,7 +197,11 @@ fn check_name(name: &str) -> Result<String> {
 
 impl AuthService {
     pub fn new(storage: Arc<dyn Storage>, key: SessionKey, session_ttl: Duration) -> Self {
-        AuthService { storage, key, session_ttl }
+        AuthService {
+            storage,
+            key,
+            session_ttl,
+        }
     }
 
     // ---- storage helpers ---------------------------------------------
@@ -207,10 +225,18 @@ impl AuthService {
     }
 
     async fn record_by_email(&self, email: &str) -> Result<Option<UserRecord>> {
-        let Some(idx) = self.storage.get_setting(&format!("{EMAILS}{email}")).await? else {
+        let Some(idx) = self
+            .storage
+            .get_setting(&format!("{EMAILS}{email}"))
+            .await?
+        else {
             return Ok(None);
         };
-        let Some(id) = idx.get("id").and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok()) else {
+        let Some(id) = idx
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|s| Uuid::parse_str(s).ok())
+        else {
             return Ok(None);
         };
         match self.record(id).await {
@@ -222,11 +248,18 @@ impl AuthService {
 
     async fn save(&self, r: &UserRecord) -> Result<()> {
         let v = serde_json::to_value(r).map_err(CmsError::storage)?;
-        self.storage.put_setting(&format!("{USERS}{}", r.id), &v).await
+        self.storage
+            .put_setting(&format!("{USERS}{}", r.id), &v)
+            .await
     }
 
     async fn active_owners(&self) -> Result<usize> {
-        Ok(self.records().await?.iter().filter(|r| r.role == Role::Owner && !r.disabled).count())
+        Ok(self
+            .records()
+            .await?
+            .iter()
+            .filter(|r| r.role == Role::Owner && !r.disabled)
+            .count())
     }
 
     /// Whether any account exists (before that, only the bootstrap token works).
@@ -251,7 +284,9 @@ impl AuthService {
     fn check_can_manage(actor: &Actor, role: Role) -> Result<()> {
         actor.require_admin()?;
         if role == Role::Owner && actor.role != Role::Owner {
-            return Err(CmsError::Forbidden("only an Owner can manage Owners".into()));
+            return Err(CmsError::Forbidden(
+                "only an Owner can manage Owners".into(),
+            ));
         }
         Ok(())
     }
@@ -262,7 +297,9 @@ impl AuthService {
         let name = check_name(&new.name)?;
         check_password(&new.password)?;
         if self.record_by_email(&email).await?.is_some() {
-            return Err(CmsError::Conflict("a user with this email already exists".into()));
+            return Err(CmsError::Conflict(
+                "a user with this email already exists".into(),
+            ));
         }
         let ts = now();
         let record = UserRecord {
@@ -281,7 +318,9 @@ impl AuthService {
             last_login_at: None,
         };
         self.save(&record).await?;
-        self.storage.put_setting(&format!("{EMAILS}{email}"), &json!({ "id": record.id })).await?;
+        self.storage
+            .put_setting(&format!("{EMAILS}{email}"), &json!({ "id": record.id }))
+            .await?;
         Ok(User::from(&record))
     }
 
@@ -298,10 +337,14 @@ impl AuthService {
         {
             Self::check_can_manage(actor, role)?;
             if is_self {
-                return Err(CmsError::Forbidden("you cannot change your own role".into()));
+                return Err(CmsError::Forbidden(
+                    "you cannot change your own role".into(),
+                ));
             }
             if r.role == Role::Owner && !r.disabled && self.active_owners().await? <= 1 {
-                return Err(CmsError::Conflict("there must always be at least one Owner".into()));
+                return Err(CmsError::Conflict(
+                    "there must always be at least one Owner".into(),
+                ));
             }
             r.role = role;
             revoke = true;
@@ -316,10 +359,14 @@ impl AuthService {
             && disabled != r.disabled
         {
             if is_self {
-                return Err(CmsError::Forbidden("you cannot disable your own account".into()));
+                return Err(CmsError::Forbidden(
+                    "you cannot disable your own account".into(),
+                ));
             }
             if disabled && r.role == Role::Owner && self.active_owners().await? <= 1 {
-                return Err(CmsError::Conflict("there must always be at least one Owner".into()));
+                return Err(CmsError::Conflict(
+                    "there must always be at least one Owner".into(),
+                ));
             }
             r.disabled = disabled;
             revoke = true;
@@ -343,13 +390,19 @@ impl AuthService {
         let r = self.record(id).await?;
         Self::check_can_manage(actor, r.role)?;
         if actor.id == Some(id) {
-            return Err(CmsError::Forbidden("you cannot delete your own account".into()));
+            return Err(CmsError::Forbidden(
+                "you cannot delete your own account".into(),
+            ));
         }
         if r.role == Role::Owner && !r.disabled && self.active_owners().await? <= 1 {
-            return Err(CmsError::Conflict("there must always be at least one Owner".into()));
+            return Err(CmsError::Conflict(
+                "there must always be at least one Owner".into(),
+            ));
         }
         self.storage.delete_setting(&format!("{USERS}{id}")).await?;
-        self.storage.delete_setting(&format!("{EMAILS}{}", r.email)).await?;
+        self.storage
+            .delete_setting(&format!("{EMAILS}{}", r.email))
+            .await?;
         Ok(())
     }
 
@@ -357,7 +410,11 @@ impl AuthService {
 
     fn issue(&self, r: &UserRecord) -> Session {
         let expires_at = Utc::now() + self.session_ttl;
-        Session { token: self.key.sign(r.id, r.session_version, expires_at), expires_at, user: User::from(r) }
+        Session {
+            token: self.key.sign(r.id, r.session_version, expires_at),
+            expires_at,
+            user: User::from(r),
+        }
     }
 
     pub async fn login(&self, email: &str, password: &str) -> Result<Session> {
@@ -371,7 +428,9 @@ impl AuthService {
             return Err(invalid_login());
         };
         if r.locked_until.is_some_and(|t| t > Utc::now()) {
-            return Err(CmsError::Forbidden("too many failed attempts, try again later".into()));
+            return Err(CmsError::Forbidden(
+                "too many failed attempts, try again later".into(),
+            ));
         }
         if !password::verify(password.to_string(), r.password_hash.clone()).await? {
             r.failed_logins += 1;
@@ -395,8 +454,15 @@ impl AuthService {
 
     /// Changes the caller's password; all other sessions are revoked and a
     /// fresh session is returned.
-    pub async fn change_password(&self, actor: &Actor, current: &str, new: &str) -> Result<Session> {
-        let id = actor.id.ok_or_else(|| CmsError::Forbidden("not a user session".into()))?;
+    pub async fn change_password(
+        &self,
+        actor: &Actor,
+        current: &str,
+        new: &str,
+    ) -> Result<Session> {
+        let id = actor
+            .id
+            .ok_or_else(|| CmsError::Forbidden("not a user session".into()))?;
         let mut r = self.record(id).await?;
         if !password::verify(current.to_string(), r.password_hash.clone()).await? {
             return Err(CmsError::Forbidden("current password is wrong".into()));
@@ -411,7 +477,9 @@ impl AuthService {
 
     /// Revokes every session of the caller (including the current one).
     pub async fn sign_out_everywhere(&self, actor: &Actor) -> Result<()> {
-        let id = actor.id.ok_or_else(|| CmsError::Forbidden("not a user session".into()))?;
+        let id = actor
+            .id
+            .ok_or_else(|| CmsError::Forbidden("not a user session".into()))?;
         let mut r = self.record(id).await?;
         r.session_version += 1;
         self.save(&r).await
@@ -422,7 +490,8 @@ impl AuthService {
     /// when it is one but invalid, expired or revoked.
     pub async fn authenticate(&self, bearer: &str) -> Result<Option<Actor>> {
         if token::is_session(bearer) {
-            let (id, version, expires_at) = self.key.verify(bearer).ok_or_else(invalid_credentials)?;
+            let (id, version, expires_at) =
+                self.key.verify(bearer).ok_or_else(invalid_credentials)?;
             if expires_at < Utc::now() {
                 return Err(CmsError::Forbidden("session expired".into()));
             }
@@ -440,7 +509,12 @@ impl AuthService {
             if t.expires_at.is_some_and(|e| e < Utc::now()) {
                 return Err(CmsError::Forbidden("API token expired".into()));
             }
-            return Ok(Some(Actor { id: None, name: format!("API token \"{}\"", t.name), role: t.role, scope: t.scope }));
+            return Ok(Some(Actor {
+                id: None,
+                name: format!("API token \"{}\"", t.name),
+                role: t.role,
+                scope: t.scope,
+            }));
         }
         Ok(None)
     }
@@ -491,13 +565,19 @@ impl AuthService {
             expires_at: expires_in.map(|d| Utc::now() + d),
         };
         let v = serde_json::to_value(&t).map_err(CmsError::storage)?;
-        self.storage.put_setting(&format!("{TOKENS}{id}"), &v).await?;
+        self.storage
+            .put_setting(&format!("{TOKENS}{id}"), &v)
+            .await?;
         Ok((t, secret))
     }
 
     pub async fn revoke_api_token(&self, actor: &Actor, id: &str) -> Result<()> {
         actor.require_admin()?;
-        if !self.storage.delete_setting(&format!("{TOKENS}{id}")).await? {
+        if !self
+            .storage
+            .delete_setting(&format!("{TOKENS}{id}"))
+            .await?
+        {
             return Err(CmsError::NotFound("API token".into()));
         }
         Ok(())

@@ -80,7 +80,9 @@ impl Format {
     }
 
     pub fn parse(s: &str) -> Option<Format> {
-        Format::ALL.into_iter().find(|f| f.as_str().eq_ignore_ascii_case(s) || f.slug() == s)
+        Format::ALL
+            .into_iter()
+            .find(|f| f.as_str().eq_ignore_ascii_case(s) || f.slug() == s)
     }
 
     /// Lowercase name used in URLs (`/i18n/json-nested/fr.json`).
@@ -102,7 +104,9 @@ impl Format {
 
     pub fn content_type(self) -> &'static str {
         match self {
-            Format::Json | Format::JsonNested | Format::I18next | Format::Arb => "application/json; charset=utf-8",
+            Format::Json | Format::JsonNested | Format::I18next | Format::Arb => {
+                "application/json; charset=utf-8"
+            }
             Format::Xliff => "application/xliff+xml; charset=utf-8",
             Format::Po => "text/x-gettext-translation; charset=utf-8",
             Format::Properties => "text/x-java-properties; charset=utf-8",
@@ -179,28 +183,58 @@ pub(crate) fn android_qualifier(tag: &str) -> String {
 }
 
 fn path_for(format: Format, ns: &str, lang: &str) -> String {
-    let dir = if ns.is_empty() { String::new() } else { format!("{ns}/") };
+    let dir = if ns.is_empty() {
+        String::new()
+    } else {
+        format!("{ns}/")
+    };
     match format {
         Format::Json | Format::JsonNested => format!("{dir}{lang}.json"),
-        Format::I18next => format!("{lang}/{}.json", if ns.is_empty() { "translation" } else { ns }),
+        Format::I18next => format!(
+            "{lang}/{}.json",
+            if ns.is_empty() { "translation" } else { ns }
+        ),
         Format::Arb => format!("{dir}app_{}.arb", underscored(lang)),
         Format::Xliff => format!("{dir}{lang}.xliff"),
         Format::Po => format!("{dir}{lang}.po"),
         Format::Properties => format!("{dir}messages_{}.properties", underscored(lang)),
         Format::AndroidXml => format!("{dir}values-{}/strings.xml", android_qualifier(lang)),
-        Format::AppleStrings => format!("{lang}.lproj/{}.strings", if ns.is_empty() { "Localizable" } else { ns }),
+        Format::AppleStrings => format!(
+            "{lang}.lproj/{}.strings",
+            if ns.is_empty() { "Localizable" } else { ns }
+        ),
         Format::Yaml => format!("{dir}{lang}.yml"),
         Format::Csv => format!("{}.csv", if ns.is_empty() { "translations" } else { ns }),
     }
 }
 
-fn text_for(key: &TranslationKey, lang: &str, base: Option<&str>, opts: &ExportOptions) -> Option<String> {
-    let pick = |l: &str| key.translations.get(l).filter(|t| opts.states.contains(&t.state)).map(|t| t.text.clone());
-    pick(lang).or_else(|| if opts.fallback_to_base { base.and_then(pick) } else { None })
+fn text_for(
+    key: &TranslationKey,
+    lang: &str,
+    base: Option<&str>,
+    opts: &ExportOptions,
+) -> Option<String> {
+    let pick = |l: &str| {
+        key.translations
+            .get(l)
+            .filter(|t| opts.states.contains(&t.state))
+            .map(|t| t.text.clone())
+    };
+    pick(lang).or_else(|| {
+        if opts.fallback_to_base {
+            base.and_then(pick)
+        } else {
+            None
+        }
+    })
 }
 
 /// Exports `keys` (sorted by namespace then name).
-pub fn export(keys: &[TranslationKey], languages: &[Language], opts: &ExportOptions) -> Result<Vec<ExportFile>> {
+pub fn export(
+    keys: &[TranslationKey],
+    languages: &[Language],
+    opts: &ExportOptions,
+) -> Result<Vec<ExportFile>> {
     let base = languages.iter().find(|l| l.base).map(|l| l.tag.as_str());
     let langs: Vec<&Language> = languages
         .iter()
@@ -232,7 +266,12 @@ pub fn export(keys: &[TranslationKey], languages: &[Language], opts: &ExportOpti
         for lang in &langs {
             let messages: Vec<Message> = ns_keys
                 .iter()
-                .filter_map(|k| Some(Message { key: k, text: text_for(k, &lang.tag, base, opts)? }))
+                .filter_map(|k| {
+                    Some(Message {
+                        key: k,
+                        text: text_for(k, &lang.tag, base, opts)?,
+                    })
+                })
                 .collect();
             let content = match opts.format {
                 Format::Json => write::json_flat(&messages),
@@ -242,7 +281,10 @@ pub fn export(keys: &[TranslationKey], languages: &[Language], opts: &ExportOpti
                 Format::Xliff => {
                     let source = base.unwrap_or(&lang.tag);
                     write::xliff(&ns_keys, ns, source, &lang.tag, |k| {
-                        (k.text(source).map(String::from), text_for(k, &lang.tag, base, opts))
+                        (
+                            k.text(source).map(String::from),
+                            text_for(k, &lang.tag, base, opts),
+                        )
                     })
                 }
                 Format::Po => write::po(&messages, &lang.tag),
@@ -265,10 +307,13 @@ pub fn export(keys: &[TranslationKey], languages: &[Language], opts: &ExportOpti
 /// Packs files into a zip archive.
 pub fn zip_files(files: &[ExportFile]) -> Result<Vec<u8>> {
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
     for f in files {
-        zip.start_file(f.path.as_str(), options).map_err(CmsError::storage)?;
-        zip.write_all(f.content.as_bytes()).map_err(CmsError::storage)?;
+        zip.start_file(f.path.as_str(), options)
+            .map_err(CmsError::storage)?;
+        zip.write_all(f.content.as_bytes())
+            .map_err(CmsError::storage)?;
     }
     Ok(zip.finish().map_err(CmsError::storage)?.into_inner())
 }

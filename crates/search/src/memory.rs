@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use tess_core::Result;
 use serde_json::Value;
+use tess_core::Result;
 use tokio::sync::RwLock;
 
 use crate::{SearchDoc, SearchEngine, SearchHits, SearchIndex, SearchRequest};
@@ -25,7 +25,10 @@ impl SearchEngine for MemoryEngine {
     }
 
     async fn reset_index(&self, index: &SearchIndex) -> Result<()> {
-        self.indexes.write().await.insert(index.content_type.clone(), BTreeMap::new());
+        self.indexes
+            .write()
+            .await
+            .insert(index.content_type.clone(), BTreeMap::new());
         Ok(())
     }
 
@@ -57,7 +60,11 @@ impl SearchEngine for MemoryEngine {
         let Some(docs) = indexes.get(&index.content_type) else {
             return Ok(SearchHits::default());
         };
-        let words: Vec<String> = request.text.split_whitespace().map(str::to_lowercase).collect();
+        let words: Vec<String> = request
+            .text
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect();
         let fields = index.text_fields();
         let ids: Vec<_> = docs
             .values()
@@ -75,7 +82,11 @@ impl SearchEngine for MemoryEngine {
             .collect();
         Ok(SearchHits {
             total: ids.len() as u64,
-            ids: ids.into_iter().skip(request.offset).take(request.limit).collect(),
+            ids: ids
+                .into_iter()
+                .skip(request.offset)
+                .take(request.limit)
+                .collect(),
         })
     }
 }

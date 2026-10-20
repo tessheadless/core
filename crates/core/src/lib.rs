@@ -24,7 +24,10 @@ pub mod validate;
 pub use access::{Actor, ActorRef, Role};
 pub use error::{CmsError, Result};
 pub use hooks::{EntryAction, EntryEvent, Hook, HookRegistry, MODEL_EVENTS, SystemEvent};
-pub use model::{Component, ComponentDef, ContentType, ContentTypeDef, Entry, FieldDef, FieldType, HistoryAction, HistoryEvent, Stage, WorkflowStatus};
+pub use model::{
+    Component, ComponentDef, ContentType, ContentTypeDef, Entry, FieldDef, FieldType,
+    HistoryAction, HistoryEvent, Stage, WorkflowStatus,
+};
 pub use query::{Direction, EntryQuery, Filter, Op, Page, SortKey};
 pub use service::Cms;
 pub use storage::Storage;

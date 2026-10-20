@@ -27,15 +27,30 @@ pub(crate) struct F {
 }
 
 pub(crate) fn plain(name: &'static str, ty: TypeRef) -> F {
-    F { name, ty, kind: Kind::Plain, description: None }
+    F {
+        name,
+        ty,
+        kind: Kind::Plain,
+        description: None,
+    }
 }
 
 pub(crate) fn enumerated(name: &'static str, ty: TypeRef) -> F {
-    F { name, ty, kind: Kind::Enum, description: None }
+    F {
+        name,
+        ty,
+        kind: Kind::Enum,
+        description: None,
+    }
 }
 
 pub(crate) fn object(name: &'static str, ty: TypeRef) -> F {
-    F { name, ty, kind: Kind::Object, description: None }
+    F {
+        name,
+        ty,
+        kind: Kind::Object,
+        description: None,
+    }
 }
 
 impl F {
