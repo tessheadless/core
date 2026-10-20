@@ -3,6 +3,7 @@
 // Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
 
 import { useData } from "vike-react/useData";
+import { linkRel } from "../../../components/SiteLink";
 import { Markdown } from "../../../components/Markdown";
 import { HeroBackdrop, Reveal, StaggerChild, StaggerGroup } from "../../../components/Motion";
 import { formatDate } from "../../../lib/format";
@@ -82,11 +83,15 @@ export default function Page() {
             <Markdown className="prose-base">{c.migration}</Markdown>
             <div className="card-actions mt-2">
               {c.migrationGuideUrl && (
-                <a href={c.migrationGuideUrl} className="btn btn-primary">
+                <a href={c.migrationGuideUrl} rel={linkRel(c.migrationGuideUrl)} className="btn btn-primary">
                   Step-by-step migration guide
                 </a>
               )}
-              <a href={c.importExportUrl} className={`btn ${c.migrationGuideUrl ? "btn-outline" : "btn-primary"}`}>
+              <a
+                href={c.importExportUrl}
+                rel={linkRel(c.importExportUrl)}
+                className={`btn ${c.migrationGuideUrl ? "btn-outline" : "btn-primary"}`}
+              >
                 Read the import &amp; export guide
               </a>
             </div>

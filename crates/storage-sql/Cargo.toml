@@ -14,7 +14,7 @@ description = "Tess storage backend for PostgreSQL, MySQL and SQLite (SeaQuery).
 
 [dependencies]
 async-trait = "0.1.92"
-tess-core = { version = "0.1.0", path = "../core" }
+tess-core = { version = "0.1.1", path = "../core" }
 sea-query = { version = "1.0.2", features = ["with-json", "backend-postgres", "backend-mysql", "backend-sqlite"] }
 sea-query-sqlx = { version = "0.9.1", features = ["with-json", "sqlx-postgres", "sqlx-mysql", "sqlx-sqlite"] }
 serde = "1.0.229"

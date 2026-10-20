@@ -22,7 +22,7 @@ const FALLBACK: Settings = {
   cta: null,
   footerLinks: [],
   footerText: null,
-  docsUrl: "https://tessheadless.com/docs/",
+  docsUrl: "/docs/",
 };
 
 export default function Layout({ children }: { children: ReactNode }) {

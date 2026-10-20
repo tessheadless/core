@@ -19,7 +19,7 @@ hex = "0.4.3"
 redis = { version = "1.7.1", default-features = false, features = ["connection-manager", "tokio-comp", "tokio-rustls-comp", "tls-rustls-webpki-roots"] }
 rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }
 sha2 = "0.11.1"
-tess-core = { version = "0.1.0", path = "../core" }
+tess-core = { version = "0.1.1", path = "../core" }
 tokio = { version = "1.53.3", features = ["rt", "sync", "time"] }
 tracing = "0.1.44"
 

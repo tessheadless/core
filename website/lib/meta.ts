@@ -11,7 +11,18 @@ export interface PageMeta {
   description?: string;
 }
 
-/** Internal links stay relative; others open as regular external links. */
+/** Links to other sites (`https://…`, `mailto:`…); the website and the docs use relative links. */
 export function isExternal(url: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(url);
+}
+
+/** Where the documentation is served, on the same domain as the website. */
+export const DOCS_PATH = "/docs/";
+
+/**
+ * Same-domain links outside the website (the docs): a full page load, not the
+ * website's client-side navigation (`rel="external"` tells Vike).
+ */
+export function isOtherApp(url: string): boolean {
+  return url === DOCS_PATH.slice(0, -1) || url.startsWith(DOCS_PATH);
 }
