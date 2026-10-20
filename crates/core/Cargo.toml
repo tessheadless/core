@@ -1,0 +1,35 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[package]
+name = "tess-core"
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Tess core: content models, validation, query language, roles, review workflow and hooks."
+
+[dependencies]
+argon2 = "0.6.0"
+async-trait = "0.1.92"
+base64 = "0.23.1"
+chacha20poly1305 = "0.11.0"
+chrono = { version = "0.4.45", features = ["serde"] }
+getrandom = "0.4.3"
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["rt", "sync"] }
+tracing = "0.1.44"
+uuid = { version = "1.28.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }
+
+[features]
+testkit = []

@@ -1,0 +1,29 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[package]
+name = "slugify-plugin"
+version = "1.0.0"
+edition = "2024"
+authors = ["Tess Dev Team"]
+homepage = "https://tessheadless.com"
+documentation = "https://tessheadless.app/doc/"
+description = "Example Tess plugin: slug generation and forbidden words."
+license-file = "../../../LICENSE.md"
+publish = false
+
+# Standalone: not part of the CMS workspace.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+extism-pdk = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

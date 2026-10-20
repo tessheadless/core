@@ -1,0 +1,104 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Default: CMS alone with embedded RocksDB + local media (`docker compose up`).
+# Optional backends are compose profiles, e.g.:
+#   docker compose --profile postgres --profile search up
+#   docker compose --profile n8n up        # workflows (n8n), with TESS_N8N_URL
+# then set TESS_DATABASE / TESS_SEARCH / TESS_MEDIA_STORE accordingly in `.env`.
+services:
+  tess:
+    build: .
+    image: tess
+    env_file: .env
+    ports: ["8080:8080"]
+    volumes: ["tess-data:/data"]
+    restart: unless-stopped
+
+  postgres:
+    profiles: [postgres]
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tess
+      POSTGRES_DB: tess
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "tess"]
+      interval: 5s
+
+  mysql:
+    profiles: [mysql]
+    image: mysql:8.4
+    environment:
+      MYSQL_USER: tess
+      MYSQL_DATABASE: tess
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes: ["mysql-data:/var/lib/mysql"]
+
+  mongo:
+    profiles: [mongodb]
+    image: mongo:8
+    volumes: ["mongo-data:/data/db"]
+
+  dynamodb:
+    profiles: [dynamodb]
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    volumes: ["dynamodb-data:/home/dynamodblocal/data"]
+    user: root
+
+  garage:
+    profiles: [s3]
+    image: dxflrs/garage:v2.1.0
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET in .env}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?set GARAGE_ADMIN_TOKEN in .env}
+    volumes:
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+      - garage-data:/var/lib/garage
+    ports: ["3900:3900"]
+
+  # Workflow automation, embedded in the admin UI at /admin/workflows.
+  # Set TESS_N8N_URL=http://n8n:5678 for the tess service (see .env.example).
+  n8n:
+    profiles: [n8n]
+    build:
+      context: .
+      dockerfile: deploy/n8n/Dockerfile
+    image: tess-n8n
+    environment:
+      # Tess serves n8n under /n8n/ (prefix stripped); n8n generates URLs with it.
+      N8N_PATH: /n8n/
+      N8N_EDITOR_BASE_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:8080/n8n/}
+      N8N_PROXY_HOPS: 1
+      # Server-sent events go through the Tess proxy (WebSockets do not).
+      N8N_PUSH_BACKEND: sse
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env}
+      # `false` only for plain-HTTP local setups.
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
+    volumes: ["n8n-data:/home/node/.n8n"]
+    restart: unless-stopped
+
+  typesense:
+    profiles: [search]
+    image: typesense/typesense:29.0
+    environment:
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:?set TYPESENSE_API_KEY in .env}
+      TYPESENSE_DATA_DIR: /data
+    volumes: ["typesense-data:/data"]
+
+volumes:
+  tess-data:
+  pg-data:
+  mysql-data:
+  mongo-data:
+  dynamodb-data:
+  garage-data:
+  typesense-data:
+  n8n-data:

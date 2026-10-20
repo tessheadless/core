@@ -1,0 +1,107 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Builds the marketing website (website/, Vike SSG) and the documentation
+# (docs/, Docusaurus) into one static site and commits it to the
+# `github-pages` branch:
+#
+#   /        the website (website/dist/client)
+#   /docs/   the documentation (docs/build, built with baseUrl /docs/)
+#
+# Setup (once): Settings → Pages → Source: “Deploy from a branch”, branch
+# `github-pages`, folder `/ (root)`. Optional repository variables
+# (Settings → Secrets and variables → Actions → Variables):
+#   PAGES_URL      public origin, e.g. https://tessheadless.com (canonical URLs, sitemap)
+#   PAGES_CNAME    custom domain written to CNAME, e.g. tessheadless.com
+#   TESS_API_URL   Tess instance the website reads its published content from
+#                  (without it, the website is built from website/content/seed.json)
+#
+# The site is served from the domain root, so use a custom domain or a
+# <user>.github.io repository.
+#
+# Rebuild when content is published in Tess: send a `repository_dispatch` of
+# type `tess-content` (e.g. from an n8n workflow started by the Tess Trigger
+# node on `entry.publish`):
+#   POST https://api.github.com/repos/<owner>/<repo>/dispatches
+#   {"event_type": "tess-content"}
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  repository_dispatch:
+    types: [tess-content]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      PAGES_URL: ${{ vars.PAGES_URL || format('https://{0}.github.io', github.repository_owner) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            website/package-lock.json
+            docs/package-lock.json
+
+      - name: Build the website
+        working-directory: website
+        env:
+          TESS_API_URL: ${{ vars.TESS_API_URL }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build the documentation (under /docs/)
+        working-directory: docs
+        env:
+          DOCS_URL: ${{ env.PAGES_URL }}
+          DOCS_BASE_URL: /docs/
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble the site
+        env:
+          PAGES_CNAME: ${{ vars.PAGES_CNAME }}
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp -R website/dist/client/. _site/
+          mkdir -p _site/docs
+          cp -R docs/build/. _site/docs/
+          # Serve files and folders starting with `_` as is.
+          touch _site/.nojekyll
+          if [ -n "$PAGES_CNAME" ]; then echo "$PAGES_CNAME" > _site/CNAME; fi
+          test -f _site/index.html
+          test -f _site/docs/index.html
+          echo "$(find _site -type f | wc -l) files"
+
+      - name: Publish to the github-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: github-pages
+          publish_dir: ./_site
+          # One commit with the current site only, no history of old builds.
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: 41898283+github-actions[bot]@users.noreply.github.com
+          commit_message: "Publish website and docs for ${{ github.sha }}"

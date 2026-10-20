@@ -1,0 +1,139 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Content models of the Tess website. Import them into a Tess instance with
+#   TESS_URL=… TESS_TOKEN=… tess-transfer import website/content/models.yaml
+# (add --update to apply changes to existing models), then seed the content
+# with `npm run seed`. Every model is prefixed with `Site` so the website can
+# share an instance with other projects.
+version: 1
+components:
+  - apiId: SiteLink
+    description: A labelled link (navigation, footer, buttons).
+    fields:
+      - { name: label, type: TEXT, required: true, maxLength: 60 }
+      - { name: url, type: TEXT, required: true, maxLength: 500 }
+
+  - apiId: SiteHero
+    description: "Page section: large title with call-to-action buttons."
+    fields:
+      - { name: eyebrow, type: TEXT, maxLength: 80 }
+      - { name: title, type: TEXT, required: true, maxLength: 160 }
+      - { name: subtitle, type: MARKDOWN }
+      - { name: primary, type: COMPONENT, component: SiteLink }
+      - { name: secondary, type: COMPONENT, component: SiteLink }
+      - { name: code, type: TEXT, maxLength: null, description: Optional snippet shown next to the title }
+
+  - apiId: SiteFeatureGrid
+    description: "Page section: grid of the SiteFeature entries."
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: subtitle, type: MARKDOWN }
+      - { name: highlightedOnly, type: BOOLEAN, description: Only features marked as highlighted }
+
+  - apiId: SiteRichText
+    description: "Page section: free Markdown text."
+    fields:
+      - { name: title, type: TEXT, maxLength: 120 }
+      - { name: body, type: MARKDOWN, required: true }
+
+  - apiId: SiteCodeSample
+    description: "Page section: explanation next to a code sample."
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: body, type: MARKDOWN }
+      - { name: language, type: TEXT, maxLength: 20 }
+      - { name: code, type: TEXT, required: true, maxLength: null }
+
+  - apiId: SiteComparisonTeaser
+    description: "Page section: links to the comparison pages."
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: subtitle, type: MARKDOWN }
+
+  - apiId: SiteFaqItem
+    fields:
+      - { name: question, type: TEXT, required: true, maxLength: 200 }
+      - { name: answer, type: MARKDOWN, required: true }
+
+  - apiId: SiteFaq
+    description: "Page section: questions and answers."
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: items, type: COMPONENT, component: SiteFaqItem, repeatable: true }
+
+  - apiId: SiteCallToAction
+    description: "Page section: closing banner with buttons."
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: body, type: MARKDOWN }
+      - { name: primary, type: COMPONENT, component: SiteLink }
+      - { name: secondary, type: COMPONENT, component: SiteLink }
+
+  - apiId: SiteComparisonRow
+    description: One criterion of a comparison.
+    fields:
+      - { name: criterion, type: TEXT, required: true, maxLength: 80 }
+      - { name: tess, type: TEXT, required: true, maxLength: 300 }
+      - { name: other, type: TEXT, required: true, maxLength: 300 }
+
+contentTypes:
+  - apiId: SiteSettings
+    pluralApiId: siteSettingsEntries
+    description: Website-wide settings. Keep exactly one published entry.
+    fields:
+      - { name: siteName, type: TEXT, required: true, maxLength: 60 }
+      - { name: tagline, type: TEXT, required: true, maxLength: 160 }
+      - { name: description, type: TEXT, required: true, maxLength: 300, description: Default SEO description }
+      - { name: navigation, type: COMPONENT, component: SiteLink, repeatable: true }
+      - { name: cta, type: COMPONENT, component: SiteLink, description: Button at the right of the navigation bar }
+      - { name: footerLinks, type: COMPONENT, component: SiteLink, repeatable: true }
+      - { name: footerText, type: MARKDOWN }
+      - { name: docsUrl, type: TEXT, required: true, maxLength: 300 }
+
+  - apiId: SitePage
+    description: A page of the website; `home` is the home page.
+    fields:
+      - { name: slug, type: TEXT, required: true, maxLength: 80, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$" }
+      - { name: title, type: TEXT, required: true, maxLength: 120 }
+      - { name: description, type: TEXT, required: true, maxLength: 300, description: SEO description }
+      - name: sections
+        type: DYNAMIC_ZONE
+        components:
+          [SiteHero, SiteFeatureGrid, SiteRichText, SiteCodeSample, SiteComparisonTeaser, SiteFaq, SiteCallToAction]
+
+  - apiId: SiteFeature
+    description: A feature shown in feature grids.
+    fields:
+      - { name: title, type: TEXT, required: true, maxLength: 80 }
+      - { name: summary, type: TEXT, required: true, maxLength: 300 }
+      - {
+          name: icon,
+          type: ENUM,
+          enumValues: [BOLT, GRAPH, DATABASE, LOCK, PLUG, CLOUD, IMAGE, SEARCH, USERS, WORKFLOW, CODE, ROBOT],
+        }
+      - { name: highlighted, type: BOOLEAN }
+      - { name: order, type: INT }
+
+  - apiId: SiteCompetitor
+    description: Another CMS, compared with Tess on /compare.
+    fields:
+      - { name: name, type: TEXT, required: true, maxLength: 60 }
+      - { name: slug, type: TEXT, required: true, maxLength: 60, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$" }
+      - { name: website, type: TEXT, maxLength: 300 }
+      - { name: kind, type: TEXT, required: true, maxLength: 120, description: "e.g. Open-source headless CMS" }
+      - { name: summary, type: TEXT, required: true, maxLength: 400 }
+      - { name: rows, type: COMPONENT, component: SiteComparisonRow, repeatable: true }
+      - { name: chooseThem, type: MARKDOWN, description: When the other product is the better choice }
+      - { name: chooseTess, type: MARKDOWN, description: When Tess is the better choice }
+      - { name: migration, type: MARKDOWN, description: How to move a project to Tess }
+      - {
+          name: importExportUrl,
+          type: TEXT,
+          required: true,
+          maxLength: 300,
+          description: Docs page of the Tess import & export tools,
+        }
+      - { name: asOf, type: DATE, required: true, description: When the facts were last checked }
+      - { name: order, type: INT }

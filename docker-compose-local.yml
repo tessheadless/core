@@ -1,0 +1,48 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Tess alone, for local use: embedded RocksDB database and uploaded files on
+# disk, both in the `tess-local-data` volume. No database server, no S3, no
+# Typesense.
+#
+#   cp .env.example .env    # fill TESS_ID_SECRET, TESS_REF_SECRET,
+#                           # TESS_SESSION_SECRET and TESS_ADMIN_TOKEN
+#                           # (one `openssl rand -hex 32` each)
+#   docker compose -f docker-compose-local.yml up --build
+#
+# Then open http://localhost:8080/admin/ and create the first Owner with
+# TESS_ADMIN_TOKEN. Data survives restarts; `down -v` deletes it.
+name: tess-local
+
+services:
+  tess:
+    build: .
+    image: tess
+    ports:
+      - 8080:8080
+    environment:
+      # Storage: embedded, single instance.
+      TESS_DATABASE: rocksdb
+      ROCKSDB_PATH: /data/rocksdb
+      TESS_MEDIA_STORE: fs
+      TESS_MEDIA_DIR: /data/media
+      # No search engine (`memory` works too, but its index is lost on restart).
+      TESS_SEARCH: none
+      TESS_LOG_FORMAT: text
+      # Secrets come from `.env` (never commit it).
+      TESS_ID_SECRET: ${TESS_ID_SECRET:?set TESS_ID_SECRET in .env (openssl rand -hex 32)}
+      TESS_REF_SECRET: ${TESS_REF_SECRET:?set TESS_REF_SECRET in .env (openssl rand -hex 32)}
+      TESS_SESSION_SECRET: ${TESS_SESSION_SECRET:?set TESS_SESSION_SECRET in .env (openssl rand -hex 32)}
+      # Bootstrap token, only needed to create the first Owner; then empty it.
+      TESS_ADMIN_TOKEN: ${TESS_ADMIN_TOKEN:-}
+      TESS_MCP: ${TESS_MCP}
+      TESS_MCP_URL: ${TESS_MCP_URL:-/mcp}
+      TESS_MCP_TOKEN: ${TESS_MCP_TOKEN:-}
+      TESS_MCP_ALLOWED_HOSTS: ${TESS_MCP_ALLOWED_HOSTS}
+    volumes:
+      - tess-local-data:/data
+    restart: unless-stopped
+
+volumes:
+  tess-local-data:

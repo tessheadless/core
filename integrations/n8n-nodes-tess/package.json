@@ -1,0 +1,29 @@
+{
+  "name": "n8n-nodes-tess",
+  "version": "0.1.0",
+  "description": "n8n nodes for Tess, the GraphQL-first headless CMS: trigger workflows on content, model and translation events, and read or write content.",
+  "keywords": ["n8n-community-node-package", "tess", "cms", "headless-cms", "graphql"],
+  "author": "Tess Dev Team",
+  "homepage": "https://tessheadless.com",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "main": "index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc && node scripts/copy-icons.mjs",
+    "dev": "tsc --watch",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": ["dist/credentials/TessApi.credentials.js"],
+    "nodes": ["dist/nodes/Tess/Tess.node.js", "dist/nodes/TessTrigger/TessTrigger.node.js"]
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "n8n-workflow": "^2.16.0",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

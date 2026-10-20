@@ -1,0 +1,28 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Tess Dev Team"]
+homepage = "https://tessheadless.com"
+documentation = "https://tessheadless.app/doc/"
+# Hybrid Community/Enterprise license, see LICENSE.md.
+license-file = "LICENSE.md"
+
+# Keep debug builds small: full debug info only for our crates.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

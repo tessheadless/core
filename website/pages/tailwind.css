@@ -1,0 +1,49 @@
+/*
+ * Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+ * SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+ * Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+ */
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@plugin "daisyui" {
+  themes:
+    light --default,
+    dark --prefersdark;
+}
+
+/* Tess brand colors, taken from the logo (blue, green, yellow, red). */
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  --color-primary: #0d3eb1;
+  --color-primary-content: #ffffff;
+  --color-secondary: #06a44b;
+  --color-secondary-content: #0b1220;
+  --color-accent: #fdd003;
+  --color-accent-content: #1f2937;
+  --color-success: #06a44b;
+  --color-success-content: #0b1220;
+  --color-warning: #fdd003;
+  --color-warning-content: #1f2937;
+  --color-error: #d81b2a; /* logo red, deepened for 4.5:1 text contrast */
+  --color-error-content: #ffffff;
+}
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  prefersdark: true;
+  --color-primary: #5b82e8;
+  --color-primary-content: #0b1220;
+  --color-secondary: #22c46d;
+  --color-secondary-content: #0b1220;
+  --color-accent: #fdd003;
+  --color-accent-content: #1f2937;
+  --color-success: #22c46d;
+  --color-success-content: #0b1220;
+  --color-warning: #fdd003;
+  --color-warning-content: #1f2937;
+  --color-error: #f4505c;
+  --color-error-content: #0b1220;
+}

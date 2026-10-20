@@ -1,0 +1,11 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+# Dependencies of config.ru (Tess behind Phusion Passenger).
+source "https://rubygems.org"
+
+ruby ">= 3.1"
+
+gem "rack", ">= 2.2", "< 4"
+gem "rack-proxy", "~> 0.7"

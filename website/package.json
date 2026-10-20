@@ -1,0 +1,39 @@
+{
+  "name": "tess-website",
+  "description": "Tess marketing website (Vike + React + daisyUI), its content managed in Tess.",
+  "author": "Tess Dev Team",
+  "homepage": "https://tessheadless.com",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "scripts": {
+    "dev": "vike dev",
+    "build": "vike build",
+    "preview": "vike build && vike preview",
+    "seed": "node scripts/seed.mjs",
+    "lint": "oxlint --type-aware --ignore-path .gitignore ."
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "vike": "^0.4.268",
+    "vike-react": "^0.6.29"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "daisyui": "^5.7.47",
+    "oxlint": "^1.87.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4"
+  },
+  "type": "module"
+}

@@ -1,0 +1,108 @@
+# Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+# SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+# Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Headless CMS on AWS Lambda (DynamoDB + S3, optional Typesense).
+
+# Build & deploy (needs cargo-lambda and the SAM CLI):
+#   sam build --beta-features && sam deploy --guided
+#
+# Secrets are read from AWS Secrets Manager at deploy time; create them first:
+#   aws secretsmanager create-secret --name tess/secrets --secret-string \
+#     '{"adminToken":"…","idSecret":"…","refSecret":"…","sessionSecret":"…","typesenseApiKey":""}'
+# (generate each value with `openssl rand -hex 32`).
+
+Parameters:
+  SecretName:
+    Type: String
+    Default: tess/secrets
+  TypesenseUrl:
+    Type: String
+    Default: ""
+    Description: Leave empty to disable search.
+  CorsOrigins:
+    Type: String
+    Default: "*"
+
+Conditions:
+  HasSearch: !Not [!Equals [!Ref TypesenseUrl, ""]]
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Architectures: [arm64]
+
+Resources:
+  ContentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      # Browsers upload directly with presigned PUT URLs.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [PUT, GET]
+            AllowedOrigins: [!Ref CorsOrigins]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+
+  CmsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: rust-cargolambda
+      BuildProperties:
+        Binary: tess
+        Arm64: true
+        Flags: --no-default-features --features dynamodb,sql,lambda,s3
+    Properties:
+      CodeUri: ../..
+      Handler: bootstrap
+      Runtime: provided.al2023
+      FunctionUrlConfig:
+        AuthType: NONE # the CMS does its own authentication (bearer tokens)
+      Environment:
+        Variables:
+          TESS_DATABASE: dynamodb
+          DYNAMODB_TABLE: !Ref ContentTable
+          TESS_MEDIA_STORE: s3
+          TESS_S3_BUCKET: !Ref MediaBucket
+          TESS_SEARCH: !If [HasSearch, typesense, none]
+          TYPESENSE_URL: !Ref TypesenseUrl
+          TYPESENSE_API_KEY: !If [HasSearch, !Sub "{{resolve:secretsmanager:${SecretName}:SecretString:typesenseApiKey}}", ""]
+          TESS_ADMIN_TOKEN: !Sub "{{resolve:secretsmanager:${SecretName}:SecretString:adminToken}}"
+          TESS_ID_SECRET: !Sub "{{resolve:secretsmanager:${SecretName}:SecretString:idSecret}}"
+          TESS_REF_SECRET: !Sub "{{resolve:secretsmanager:${SecretName}:SecretString:refSecret}}"
+          TESS_SESSION_SECRET: !Sub "{{resolve:secretsmanager:${SecretName}:SecretString:sessionSecret}}"
+          TESS_CORS_ORIGINS: !Ref CorsOrigins
+          TESS_GRAPHIQL: "false"
+          RUST_LOG: info
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref ContentTable }
+        - S3CrudPolicy: { BucketName: !Ref MediaBucket }
+
+Outputs:
+  ApiUrl:
+    Description: GraphQL endpoint is <ApiUrl>graphql
+    Value: !GetAtt CmsFunctionUrl.FunctionUrl

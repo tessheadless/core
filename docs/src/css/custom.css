@@ -1,0 +1,52 @@
+/*
+ * Copyright © 2026 Tess Dev Team <https://tessheadless.com>
+ * SPDX-License-Identifier: LicenseRef-Tess-Community-Enterprise
+ * Community edition: personal use. Enterprise edition: commercial use. See LICENSE.md.
+ */
+
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  /* Tess brand blue (from the logo) */
+  --ifm-color-primary: #0d3eb1;
+  --ifm-color-primary-dark: #0c38a0;
+  --ifm-color-primary-darker: #0b3597;
+  --ifm-color-primary-darkest: #092b7c;
+  --ifm-color-primary-light: #0e44c2;
+  --ifm-color-primary-lighter: #0f47cb;
+  --ifm-color-primary-lightest: #1251e2;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --tess-green: #06a44b;
+  --tess-yellow: #fdd003;
+  --tess-red: #ef2534;
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #5b82e8;
+  --ifm-color-primary-dark: #4572e5;
+  --ifm-color-primary-darker: #3a6ae3;
+  --ifm-color-primary-darkest: #1f52d0;
+  --ifm-color-primary-light: #7192eb;
+  --ifm-color-primary-lighter: #7c9aed;
+  --ifm-color-primary-lightest: #9db3f1;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Mosaic stripe in the logo colors under the homepage hero. */
+.tess-stripe {
+  height: 6px;
+  background: linear-gradient(
+    90deg,
+    #0d3eb1 0 25%,
+    var(--tess-green) 25% 50%,
+    var(--tess-yellow) 50% 75%,
+    var(--tess-red) 75% 100%
+  );
+}
