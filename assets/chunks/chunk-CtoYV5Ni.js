@@ -1,0 +1,1 @@
+import{n as e}from"./chunk-B_aoEyWP.js";function t(t,n){let r=new Date(`${t}T00:00:00Z`);return Number.isNaN(r.getTime())?t:r.toLocaleDateString(e[n].intl,{year:`numeric`,month:`long`,day:`numeric`,timeZone:`UTC`})}export{t};
